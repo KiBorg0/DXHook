@@ -1,38 +1,39 @@
+#include <qglobal.h>
 #include <Windows.h>
-#include <QCoreApplication>
 #include <d3d9.h>
 #include <d3dx9.h>
-#include <QDebug>
 #include <stdio.h>
+#include <QString>
 #define D3DparamX		, UINT paramx
 #define D3DparamvalX	, paramx
-//#pragma comment(lib, "d3d9.lib")
-//#pragma comment(lib, "d3dx9.lib")
-
-#include "Structure.h"
-cFun Fun;
-
-
-#include "Menu.h"
-
-#include "cMemory.h"
-cMemory *MemHack;
-
-
-#include "cRender.h"
-cRender Render;
-ID3DXFont* pFont;
+#define new_My_Thread(Function) CreateThread(0,0,(LPTHREAD_START_ROUTINE)Function,0,0,0);
 
 typedef IDirect3D9* (__stdcall *DIRECT3DCREATE9)(unsigned int);
+//typedef HRESULT ( WINAPI* oReset )( LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters );//edit if you want to work for the game
+typedef HRESULT	(WINAPI* oEndScene)(LPDIRECT3DDEVICE9 pDevice);
+oEndScene pEndScene = NULL;
+//oReset pReset;
+ID3DXFont* pFont;
+bool hooked = false;
+bool Init = false;
 DWORD dwEndScene;
 BYTE CodeFragmentES[5] = { 0, 0, 0, 0, 0 };
 BYTE jmpbES[5] = { 0, 0, 0, 0, 0 };
 DWORD dwOldProtectES = 0;
 
-typedef HRESULT ( WINAPI* oReset )( LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters );//edit if you want to work for the game
-typedef HRESULT	(WINAPI* oEndScene)(LPDIRECT3DDEVICE9 pDevice);
-oEndScene pEndScene = NULL;
-oReset pReset;
+typedef struct{
+    int AverageAPM;
+    int CurrentAPM;
+    int MaxAPM;
+    int downloadProgress;
+    char player[7][50];
+    char mapName[50];
+} TGameInfo;
+
+typedef TGameInfo *PGameInfo;
+
+HANDLE hSharedMemory;
+PGameInfo lpSharedMemory;
 
 void __fastcall String(int x, int y, DWORD Color, DWORD Style, const char *Format, ...)
 {
@@ -58,110 +59,96 @@ void __fastcall String(int x, int y, DWORD Color, DWORD Style, const char *Forma
 //return hRet;
 //}
 
-bool Init = false;
 HRESULT APIENTRY myEndScene( LPDIRECT3DDEVICE9 pDevice )
 {
-    qDebug() << "hlop";
+    hSharedMemory = OpenFileMapping(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, L"DXHook-Shared-Memory");
+    if(hSharedMemory != NULL)
+        lpSharedMemory = (PGameInfo)MapViewOfFile(hSharedMemory, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, 0);
 
-//    BYTE* CDES = (BYTE*)pEndScene;
-//    CDES[0] = CodeFragmentES[0];
-//    *((DWORD*)(CDES + 1)) = *((DWORD*)(CodeFragmentES + 1));
 
-//    if (!Init)
-//    {
-//        Beep(100, 100);
-//        D3DXCreateFont(pDevice, 13, 0, FW_BLACK, 0, FALSE, DEFAULT_CHARSET, OUT_TT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Tahoma", &pFont);
-//        Init = true;
-//    }
+    BYTE* CDES = (BYTE*)pEndScene;
+    CDES[0] = CodeFragmentES[0];
+    *((DWORD*)(CDES + 1)) = *((DWORD*)(CodeFragmentES + 1));
 
-//    if (!pFont)
-//        pFont->OnLostDevice();
-//    else
-//    {
-//        String(10, 10, D3DCOLOR_ARGB(255, 0, 255, 0), DT_LEFT | DT_NOCLIP, "Моя первая DLL, с ипользованием DirectX библиотек");
-//        pFont->OnLostDevice();
-//        pFont->OnResetDevice();
-//    }
-
-//    DWORD res = pEndScene(pDevice);
-//    CDES[0] = jmpbES[0];
-//    *((DWORD*)(CDES + 1)) = *((DWORD*)(jmpbES + 1));
-
-//    return res;
-
-    if( !Render.Init )
+    if (!Init)
     {
-        qDebug() << D3DXCreateFont(pDevice, 15, 0, FW_BLACK,0, FALSE, DEFAULT_CHARSET, OUT_TT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, (WCHAR *)"Arial", &Render.pFont);
-        Render.Init = true;
+//        Beep(100, 100);
+        D3DXCreateFont(pDevice, 13, 0, FW_BLACK, 0, FALSE, DEFAULT_CHARSET, OUT_TT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Tahoma", &pFont);
+        Init = true;
     }
-	
-    Render.Init_PosMenu(20,20,VK_END,"D3D9 Menu от А до Я",&Render.pos_Menu,pDevice);
 
-    return pEndScene( pDevice );
-}
+    DWORD h=1024, w=1280;
+    D3DDEVICE_CREATION_PARAMETERS cparams;
+    RECT rect;
 
-void *DetourFunction (BYTE *src, const BYTE *dst, const int len)//edit if you want to work for the game
-{
-BYTE *jmp = (BYTE*)malloc(len+5);
-DWORD dwBack;
+    pDevice->GetCreationParameters(&cparams);
+    GetWindowRect(cparams.hFocusWindow, &rect);
+    h = abs(rect.bottom - rect.top);
+    w = abs(rect.right - rect.left);
+//    if(pDevice!=NULL)
+//    {
+//        D3DVIEWPORT9* pViewport;
+//        pDevice->GetViewport(pViewport);
+//        h = pViewport->Height;
+//        w = pViewport->Width;
+//    }
 
-VirtualProtect(src, len, PAGE_EXECUTE_READWRITE, &dwBack);
-memcpy(jmp, src, len);
-jmp += len;
-jmp[0] = 0xE9;
-*(DWORD*)(jmp+1) = (DWORD)(src+len - jmp) - 5;
-src[0] = 0xE9;
-*(DWORD*)(src+1) = (DWORD)(dst - src) - 5;
-for (int i=5; i<len; i++) src[i]=0x90;
-VirtualProtect(src, len, dwBack, &dwBack);
-return (jmp-len);
-}
+    if (!pFont)
+        pFont->OnLostDevice();
+    else
+    {
+        if(lpSharedMemory!=0){
+            QString str;
+            if(lpSharedMemory->CurrentAPM!=0){
+            str = "CurrentAPM: "+QString::number(lpSharedMemory->CurrentAPM);
+            }
+            if(lpSharedMemory->AverageAPM!=0){
+            str += " AverageAPM: "+QString::number(lpSharedMemory->AverageAPM);
+            }
+            if(lpSharedMemory->MaxAPM!=0){
+            str += " MaxAPM: "+QString::number(lpSharedMemory->MaxAPM);
+            }
+            QString player_info;
+            for(int i=0; i<7; i++)
+            {
+                player_info = QString::fromLatin1(&lpSharedMemory->player[i][0]);
+                if(!player_info.isEmpty())
+                    String(w*0.5, 10*(i+2), D3DCOLOR_ARGB(255, 0, 255, 0), DT_LEFT | DT_NOCLIP, player_info.toStdString().data());
+            }
+            QString mapName = QString::fromLatin1(&lpSharedMemory->mapName[0]);
+            if(!mapName.isEmpty())
+            {
+                int p = lpSharedMemory->downloadProgress/10;
+                if(p!=0)
+                {
+                    String(w*0.5, 20, D3DCOLOR_ARGB(255, 0, 255, 0), DT_LEFT | DT_NOCLIP, QString("Downloading: "+mapName).toStdString().data());
+                    QString progress = QString("#").repeated(p)+QString(" ").repeated(10-p)+" "+QString::number(lpSharedMemory->downloadProgress)+"%";
+                    String(w*0.5, 30, D3DCOLOR_ARGB(255, 0, 255, 0), DT_LEFT | DT_NOCLIP, progress.toStdString().data());
+                }
+                else{
+                    String(w*0.5, 20, D3DCOLOR_ARGB(255, 0, 255, 0), DT_LEFT | DT_NOCLIP, QString("Please re-join").toStdString().data());
+                }
+            }
+            if(!str.isEmpty())
+                String(w*0.5, 10, D3DCOLOR_ARGB(255, 0, 255, 0), DT_LEFT | DT_NOCLIP, str.toStdString().data());
+        }
 
-
-int D3d9_Hook(void)
-{
-	DWORD*vtbl=0;
-    // загрузка directx библиотеки
-	DWORD hD3D9=(DWORD)LoadLibraryA("d3d9.dll");
-    qDebug() << (PBYTE)hD3D9;
-    // поиск комбинации байт по адресу загруженной в память библиотеки
-	DWORD table=MemHack->FindPattern(hD3D9,0x128000,(PBYTE)"\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86","xx????xx????xx");
-    qDebug() << (PBYTE)table;
-
-//    memcpy(&vtbl,(void*)(table+2),4);
-
-//    qDebug() << &vtbl << (PBYTE)vtbl[42] << (PBYTE)vtbl[0];
-//    qDebug() << vtbl << (PBYTE)myEndScene << (PBYTE)vtbl[42];
-    if (table) {
-    memcpy(&vtbl,(void *)(table+2),4);
-//    pReset = (oReset) DetourFunction((PBYTE)vtbl[16] , (PBYTE)Reset ,5);
-    pEndScene = (oEndScene) DetourFunction((PBYTE)vtbl[42], (PBYTE)myEndScene,5);
+        pFont->OnLostDevice();
+        pFont->OnResetDevice();
     }
-//    pEndScene=(oEndScene)MemHack->Create_Hook((PBYTE)vtbl[42],(PBYTE)myEndScene,5);
 
-//    qDebug() << (PBYTE)pEndScene;
-    return 0;
+    DWORD res = pEndScene(pDevice);
+    CDES[0] = jmpbES[0];
+    *((DWORD*)(CDES + 1)) = *((DWORD*)(jmpbES + 1));
+
+    return res;
+
 }
-
-//BOOL WINAPI DllMain(HMODULE hDll, DWORD dwReason, LPVOID lpReserved)
-//{
-//	if (dwReason==DLL_PROCESS_ATTACH)
-//	{
-//		DisableThreadLibraryCalls(hDll);
-//		new_My_Thread(D3d9_Hook);
-//	}
-//	return TRUE;
-//}
 
 void GetDevice9Methods()
 {
-    qDebug() << "GetDevice9Methods";
     HWND hWnd = CreateWindowA("STATIC", "dummy", 0, 0, 0, 0, 0, 0, 0, 0, 0);
-//    WNDCLASSEX wc = { sizeof(WNDCLASSEX),CS_CLASSDC,TempWndProc,0L,0L,GetModuleHandle(NULL),NULL,NULL,NULL,NULL,("1"),NULL};
-//    RegisterClassEx(&wc);
-//    HWND hWnd = CreateWindowA("1",NULL,WS_OVERLAPPEDWINDOW,100,100,300,300,GetDesktopWindow(),NULL,wc.hInstance,NULL);
     HMODULE hD3D9 = LoadLibrary(L"d3d9");
-//    HMODULE hD3D9 = GetModuleHandleA("d3d9");
     DIRECT3DCREATE9 Direct3DCreate9 = (DIRECT3DCREATE9)GetProcAddress(hD3D9, "Direct3DCreate9");
     IDirect3D9* d3d = Direct3DCreate9(D3D_SDK_VERSION);
 
@@ -175,9 +162,7 @@ void GetDevice9Methods()
     IDirect3DDevice9* d3dDevice = 0;
     d3d->CreateDevice(0, D3DDEVTYPE_HAL, hWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING, &d3dpp, &d3dDevice);
     DWORD* vtablePtr = (DWORD*)(*((DWORD*)d3dDevice));
-    qDebug() << (PBYTE)vtablePtr[42];
     dwEndScene = vtablePtr[42] - (DWORD)hD3D9;
-    qDebug() << (PBYTE)dwEndScene;
     d3dDevice->Release();
     d3d->Release();
     FreeLibrary(hD3D9);
@@ -215,9 +200,9 @@ PVOID D3Ddiscover(void *tbl, int size)
     DestroyWindow(hWnd);
     return pInterface;
 }
+
 void HookDevice9Methods()
 {
-    qDebug() << "HookDevice9Methods";
     DWORD        vTable[105];
     HMODULE hD3D9 = GetModuleHandle(L"d3d9.dll");
     pEndScene = (oEndScene)((DWORD)hD3D9 + dwEndScene);
@@ -233,13 +218,10 @@ void HookDevice9Methods()
     memcpy((PBYTE)pEndScene, jmpbES, 5);
 }
 
-bool hooked = false;
 HRESULT WINAPI Hook()
 {
-
     if (hooked == false)
     {
-        qDebug() << "Hook";
         GetDevice9Methods();
         HookDevice9Methods();
         hooked = true;
@@ -247,11 +229,16 @@ HRESULT WINAPI Hook()
     return 0;
 }
 
-int main(int argc, char *argv[])
+BOOL WINAPI DllMain(HMODULE hDll, DWORD dwReason, LPVOID lpReserved)
 {
-    QCoreApplication a(argc, argv);
-//    new_My_Thread(D3d9_Hook);
-    D3d9_Hook();
-//    Hook();
-    return a.exec();
+    if (dwReason==DLL_PROCESS_ATTACH)
+    {
+        DisableThreadLibraryCalls(hDll);
+        new_My_Thread(Hook);
+    }
+    return TRUE;
+}
+
+Q_DECL_EXPORT void Inject(void)
+{
 }

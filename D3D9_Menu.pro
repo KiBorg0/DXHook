@@ -8,12 +8,14 @@ QT       += core
 QT       -= gui
 
 QMAKE_CXXFLAGS += -std=c++11
-CONFIG += console
-TARGET = D3D9_Menu
-#TEMPLATE = lib
-TEMPLATE = app
-#CONFIG += dll
+#CONFIG += console
+TARGET = dx_hook
+TEMPLATE = lib
+#TEMPLATE = app
+CONFIG += dll
 DEFINES += D3D9_MENU_LIBRARY
+PROJECT_PATH = "C:/OpenServer/domains/dowstats/ssstats"
+DESTDIR      = $$PROJECT_PATH
 
 # The following define makes your compiler emit warnings if you use
 # any feature of Qt which as been marked as deprecated (the exact warnings
@@ -28,15 +30,6 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     Base.cpp \
-    cMemory.cpp \
-    cRender.cpp
-
-HEADERS += \
-    cMemory.h \
-    Colors.h \
-    cRender.h \
-    Menu.h \
-    Structure.h
 
 unix {
     target.path = /usr/lib
