@@ -9,12 +9,12 @@ QT       -= gui
 
 QMAKE_CXXFLAGS += -std=c++11
 #CONFIG += console
-TARGET = dx_hook
+TARGET = DXHook
 TEMPLATE = lib
 #TEMPLATE = app
-CONFIG += dll
-DEFINES += D3D9_MENU_LIBRARY
-PROJECT_PATH = "C:/OpenServer/domains/dowstats/ssstats"
+CONFIG += dll qt
+DEFINES += DXHook_LIBRARY
+PROJECT_PATH = "C:/OpenServer/domains/dowstats.loc/ssstats"
 DESTDIR      = $$PROJECT_PATH
 
 # The following define makes your compiler emit warnings if you use
@@ -28,24 +28,19 @@ DEFINES += QT_DEPRECATED_WARNINGS
 # You can also select to disable deprecated APIs only up to a certain version of Qt.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
-SOURCES += \
-    Base.cpp \
-
+SOURCES += main.cpp
 unix {
     target.path = /usr/lib
     INSTALLS += target
 }
+
 LIBS += -ld3d9
 LIBS += -ld3dx9
-
-#win32: LIBS += -L$$PWD/'../../Program Files (x86)/Microsoft DirectX SDK (June 2010)/Lib/x86/' -ld3d9
-#win32: LIBS += -L$$PWD/'../../Program Files (x86)/Microsoft DirectX SDK (June 2010)/Lib/x86/' -ld3dx9
-
-#INCLUDEPATH += $$PWD/'../../Program Files (x86)/Microsoft DirectX SDK (June 2010)/Include'
-#DEPENDPATH += $$PWD/'../../Program Files (x86)/Microsoft DirectX SDK (June 2010)/Include'
 
 win32:!win32-g++: PRE_TARGETDEPS += $$PWD/'../../Program Files (x86)/Microsoft DirectX SDK (June 2010)/Lib/x86/d3d9.lib'
 else:win32-g++: PRE_TARGETDEPS += $$PWD/'../../Program Files (x86)/Microsoft DirectX SDK (June 2010)/Lib/x86/libd3d9.a'
 
 win32:!win32-g++: PRE_TARGETDEPS += $$PWD/'../../Program Files (x86)/Microsoft DirectX SDK (June 2010)/Lib/x86/d3dx9.lib'
 else:win32-g++: PRE_TARGETDEPS += $$PWD/'../../Program Files (x86)/Microsoft DirectX SDK (June 2010)/Lib/x86/libd3dx9.a'
+
+HEADERS += Colors.h
