@@ -38,7 +38,7 @@ void customMessageHandler(QtMsgType type, const char* msg)
 
 void Logger::installLog()
 {
-    logFile = new QFile("stats.log");
+    logFile = new QFile("dxhook.log");
     if(logFile->open(QIODevice::WriteOnly | QIODevice::Unbuffered))
     logStream = new QTextStream(logFile);
 

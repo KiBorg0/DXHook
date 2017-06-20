@@ -9,7 +9,7 @@ QT       -= gui
 
 QMAKE_CXXFLAGS += -std=c++11
 #CONFIG += console
-TARGET = DXHook
+TARGET = dx_hook
 TEMPLATE = lib
 #TEMPLATE = app
 CONFIG += dll qt

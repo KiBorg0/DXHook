@@ -1,5 +1,8 @@
 #include "cRender.h"
 
+int Button_Mass[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    Button_Number = 0,
+    Button_Max = 0;
 
 cRender::cRender(void)
 {
@@ -7,7 +10,7 @@ cRender::cRender(void)
 	w_menu = 160;  //ширина основного меню
 	w_sub_menu = 200;
 }
-void  cRender::Draw_Text(int x,int y,DWORD color,LPCSTR text,DWORD ST)
+void  cRender::Draw_Text(int x,int y,DWORD color, const char *text,DWORD ST)
 {
 	RECT rect, rect2;
 	SetRect( &rect, x, y, x, y );
@@ -62,16 +65,26 @@ BOOL  cRender::State_Key(int Key,DWORD dwTimeOut)
 	}
 	else
 		kPressingKeys[Key].bPressed = FALSE;
-	return FALSE;
+    return FALSE;
 }
-void  cRender::Init_PosMenu(int x,int y,DWORD KEY, const char* Titl,stMenu* pos_Menu,IDirect3DDevice9* m_pD3Ddev)
+
+void cRender::SHOW_MENU(LPDIRECT3DDEVICE9 pDevice)
+{
+//    Draw_Menu_But(&pos_Menu,"New Button 1", pDevice);
+//    if(Button_Mass[0]) { }
+//    Draw_Menu_But(&pos_Menu,"New Button 2", pDevice);
+//    if(Button_Mass[1]) { }
+//    Draw_Menu_But(&pos_Menu,"New Button 3", pDevice);
+//    if(Button_Mass[2]) { }
+//    Draw_Menu_But(&pos_Menu,"New Button 4", pDevice);
+//    if(Button_Mass[3]) { }
+//    Button_Number=0;
+}
+void  cRender::Init_PosMenu(int x,int y,DWORD KEY,const char* Titl,stMenu* pos_Menu,IDirect3DDevice9* m_pD3Ddev)
 {
 	(*pos_Menu).x = x;
 	(*pos_Menu).y = y+30;
 	(*pos_Menu)._y = y+30;
-
-
-	
 
 	if( !pFont)
 		pFont->OnLostDevice();
@@ -139,11 +152,7 @@ void  cRender::Draw_GradientBox(float x, float y, float width, float height, DWO
 
 }
 
-int Button_Mass[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-	Button_Number = 0,
-	Button_Max = 0;
-
-void  cRender::Draw_Menu_But(stMenu *pos_Menu,const char* text,IDirect3DDevice9* pDevice)
+void  cRender::Draw_Menu_But(stMenu *pos_Menu,char* text,IDirect3DDevice9* pDevice)
 {
 	int x = (*pos_Menu).x+2,
 		y = (*pos_Menu).y,
@@ -183,7 +192,7 @@ void  cRender::Draw_Menu_But(stMenu *pos_Menu,const char* text,IDirect3DDevice9*
 	(*pos_Menu).y = y+24;
 	(*pos_Menu).height_fon =(*pos_Menu).y-20;
 }
-void  cRender::Draw_CheckBox(stMenu *pos_Menu, bool &Var, const char *Text,IDirect3DDevice9 *pDevice)
+void  cRender::Draw_CheckBox(stMenu *pos_Menu,bool &Var,char *Text,IDirect3DDevice9 *pDevice)
 {
 	int x = (*pos_Menu).x+w_menu+13,
 		y = (*pos_Menu)._y+3,
@@ -209,7 +218,7 @@ void  cRender::Draw_CheckBox(stMenu *pos_Menu, bool &Var, const char *Text,IDire
 	(*pos_Menu)._y = y+20;
 	(*pos_Menu).height_sub_fon =(*pos_Menu)._y-46;
 }
-void  cRender::Draw_ColorBox(stMenu *pos_Menu, const char *Text, int &Var,DWORD *Sel_color,int SizeArr, IDirect3DDevice9 * pDevice)
+void  cRender::Draw_ColorBox(stMenu *pos_Menu, char *Text, int &Var,DWORD *Sel_color,int SizeArr, IDirect3DDevice9 * pDevice)
 {
 	int x = (*pos_Menu).x+w_menu+13,
 		y = (*pos_Menu)._y+3,
@@ -235,12 +244,12 @@ void  cRender::Draw_ColorBox(stMenu *pos_Menu, const char *Text, int &Var,DWORD 
 	(*pos_Menu)._y = y+20;
 	(*pos_Menu).height_sub_fon =(*pos_Menu)._y-46;
 }
-void  cRender::Draw_ScrolBox(stMenu *pos_Menu, const char *Text, int &Var,int Maximal,IDirect3DDevice9 *pDevice)
+void  cRender::Draw_ScrolBox(stMenu *pos_Menu, char *Text, int &Var,int Maximal,IDirect3DDevice9 *pDevice)
 {
 	int x = (*pos_Menu).x+w_menu+13,
-		y = (*pos_Menu)._y+3,
-		w = 16,
-		h = 16;
+        y = (*pos_Menu)._y+3;
+//		w = 16,
+//		h = 16;
 	
 	D3DCOLOR inActiv = C_Text_Ctrl;
 	char c_Value[MAX_PATH];
@@ -257,7 +266,7 @@ void  cRender::Draw_ScrolBox(stMenu *pos_Menu, const char *Text, int &Var,int Ma
 	}
 	
 	sprintf(c_Value, "[ %d ]", Var);
-    int lenText = GetTextLen((LPCTSTR) c_Value);
+//    int lenText = GetTextLen((LPCTSTR)c_Value);
 	Draw_Text(x+7,y+3,inActiv,c_Value,L_Text);
 
 	Draw_Text(x+w_sub_menu-10 ,y+3,C_Text_Ctrl,Text,R_Text);

@@ -1,24 +1,27 @@
 #include <qglobal.h>
-#include <Windows.h>
+#include <windows.h>
 #include <d3d9.h>
 #include <d3dx9.h>
 #include <stdio.h>
 #include "Colors.h"
-#include <QString>
 #include <QSettings>
-#include <QDebug>
-#include "logger.h"
+#include <QProcess>
+//#include "cRender.h"
 #define D3DparamX		, UINT paramx
 #define D3DparamvalX	, paramx
 #define new_My_Thread(Function) CreateThread(0,0,(LPTHREAD_START_ROUTINE)Function,0,0,0);
 
-Logger logger;
+//wchar_t *MyCharToWideChar(const char *data);
+//void paint(IDirect3DDevice9 *pDevice);
+
 typedef IDirect3D9* (__stdcall *DIRECT3DCREATE9)(unsigned int);
-//typedef HRESULT ( WINAPI* oReset )( LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters );//edit if you want to work for the game
+//edit if you want to work for the game
+//typedef HRESULT (WINAPI* oReset)( LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters );
 //typedef HRESULT	(WINAPI* oEndScene)(LPDIRECT3DDEVICE9 pDevice);
 typedef HRESULT	(WINAPI* oEndScene)(IDirect3DDevice9* pDevice, const RECT* src, const RECT* dest, HWND hWnd, void* unused);
 oEndScene pEndScene = NULL;
-//oReset pReset;
+//oPresent9 pPresent9 = NULL;
+//oReset pReset = NULL;
 ID3DXFont* pFont;
 bool hooked = false;
 bool Init = false;
@@ -28,28 +31,24 @@ BYTE CodeFragmentES[5] = { 0, 0, 0, 0, 0 };
 BYTE jmpbES[5] = { 0, 0, 0, 0, 0 };
 DWORD dwOldProtectES = 0;
 
+
 typedef struct{
+    char players[8][100];
+    char mapName[50];
     int AverageAPM;
     int CurrentAPM;
     int MaxAPM;
     int downloadProgress;
-    char players[8][100];
-    char mapName[50];
+    bool initFont;
 } TGameInfo;
-
-struct Color{
-    int r;
-    int g;
-    int b;
-};
 
 typedef TGameInfo *PGameInfo;
 
 HANDLE hSharedMemory = nullptr;
 PGameInfo lpSharedMemory = nullptr;
 int fontSize;
-Color fontColor;
-QString font;
+D3DCOLOR fontColor = Colors::WHITE;
+std::string font = "Gulim";
 
 void __fastcall String(int x, int y, DWORD Color, DWORD Style, const char *Format, ...)
 {
@@ -72,7 +71,6 @@ void __fastcall String(int x, int y, DWORD Color, DWORD Style, const char *Forma
 int GetTextLen(const char *szString)
 {
     RECT rect = {0,0,0,0};
-//    pFont->DrawText(NULL, szString, -1, &rect, DT_CALCRECT, 0);
     pFont->DrawTextA(NULL, szString, -1, &rect, DT_CALCRECT, 0);
     return rect.right;
 }
@@ -98,16 +96,7 @@ void Draw_Border(int x, int y, int w, int h,int s, D3DCOLOR Color,IDirect3DDevic
     Draw_Box(x,  y, w,  s,Color,mDevice);
     Draw_Box(x+w,y, s,h+s,Color,mDevice);
 }
-//HRESULT WINAPI Reset(IDirect3DDevice9* pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters )
-//{
-//dMenu.pFont->OnLostDevice();
 
-//HRESULT hRet = pReset(pDevice, pPresentationParameters);
-
-//dMenu.pFont->OnResetDevice();
-
-//return hRet;
-//}
 bool fileMapping = false;
 
 long __stdcall HookedPresent9(IDirect3DDevice9* pDevice, const RECT* src, const RECT* dest, HWND hWnd, void* unused)
@@ -120,97 +109,70 @@ long __stdcall HookedPresent9(IDirect3DDevice9* pDevice, const RECT* src, const 
     CDES[0] = CodeFragmentES[0];
     *((DWORD*)(CDES + 1)) = *((DWORD*)(CodeFragmentES + 1));
 
+
     if (!Init)
     {
-//        Beep(100, 100);
-        int length = MultiByteToWideChar(CP_UTF8, 0, font.toStdString().data(), -1, NULL, 0);
-        wchar_t *ptr = new wchar_t[length];
-        MultiByteToWideChar(CP_UTF8, 0, font.toStdString().data(), -1, ptr, length);
-        D3DXCreateFont(pDevice, fontSize, 0, FW_BLACK, 0, FALSE, DEFAULT_CHARSET, OUT_TT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, ptr, &pFont);
+        // создаем шрифт и получаем указатель на него
+        D3DXCreateFont(pDevice, fontSize, 0, FW_BLACK, 0, FALSE, DEFAULT_CHARSET,
+                       OUT_TT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                       L"Gulim", &pFont);
         Init = true;
     }
 
-    DWORD h=1024, w=1280;
+
+    // получаем высоту и ширину экрана
     D3DDEVICE_CREATION_PARAMETERS cparams;
     RECT rect;
-
     pDevice->GetCreationParameters(&cparams);
     GetWindowRect(cparams.hFocusWindow, &rect);
-    h = abs(rect.bottom - rect.top);
-    w = abs(rect.right - rect.left);
+    DWORD h = abs(rect.bottom - rect.top);
+    DWORD w = abs(rect.right - rect.left);
 
-    if (!pFont)
+    if (!pFont){
         pFont->OnLostDevice();
-    else
-    {
-//        String(10, 60, D3DCOLOR_ARGB(127, fontColor.r, fontColor.g, fontColor.b), DT_LEFT | DT_NOCLIP, "Тест 1");
+    }else{
+        String(10, 60, fontColor, DT_LEFT | DT_NOCLIP, "Тест 1");
         if(lpSharedMemory!=0){
-            QString str;
-//            String(10, 75, D3DCOLOR_ARGB(127, fontColor.r, fontColor.g, fontColor.b), DT_LEFT | DT_NOCLIP, "Тест 2");
-//            qDebug() << "debug 11";
-            if(lpSharedMemory->CurrentAPM!=0){
-            str = "CurrentAPM: "+QString::number(lpSharedMemory->CurrentAPM);
-            }
-            if(lpSharedMemory->AverageAPM!=0){
-            str += " AverageAPM: "+QString::number(lpSharedMemory->AverageAPM);
-            }
-            if(lpSharedMemory->MaxAPM!=0){
-            str += " MaxAPM: "+QString::number(lpSharedMemory->MaxAPM);
-            }
-//            qDebug() << "debug 12";
-            QString player_info;
-//            int text_w = GetTextLen(L"Тест 1");11
-            for(int i=0; i<8; i++)
-            {
-                player_info = QString::fromLatin1(&lpSharedMemory->players[i][0]);
-                if(!player_info.isEmpty())
-                {
-                    int text_w = GetTextLen(player_info.toStdString().data());
-                    Draw_Box(w*0.35-5, (fontSize+4)*(i+2)+i*3,text_w+10,fontSize+1,C_BOX,pDevice);
-                    Draw_Border(w*0.35-5, (fontSize+4)*(i+2)+i*3,text_w+10,fontSize+1,1,C_BORDER,pDevice);
-                    String(w*0.35, (fontSize+4)*(i+2)+i*3, D3DCOLOR_ARGB(255, fontColor.r, fontColor.g, fontColor.b), DT_LEFT | DT_NOCLIP, player_info.toStdString().data());
+            std::string str="";
+            String(10, 75, fontColor, DT_LEFT | DT_NOCLIP, "Тест 2");
+            if(lpSharedMemory->CurrentAPM>0)
+                str += "CurrentAPM: "+std::to_string(lpSharedMemory->CurrentAPM);
+            if(lpSharedMemory->AverageAPM>0)
+                str += " AverageAPM: "+std::to_string(lpSharedMemory->AverageAPM);
+            if(lpSharedMemory->MaxAPM>0)
+                str += " MaxAPM: "+std::to_string(lpSharedMemory->MaxAPM);
 
+            for(int i=0; i<8; i++){
+                std::string player_info(&lpSharedMemory->players[i][0]);
+                if(!player_info.empty()){
+                    int text_w = GetTextLen(player_info.data());
+                    Draw_Box(w*0.35-5, 12+i*(fontSize+10),text_w+10,fontSize+4,C_BOX,pDevice);
+                    Draw_Border(w*0.35-5, 12+i*(fontSize+10),text_w+10,fontSize+4,1,C_BORDER,pDevice);
+                    String(w*0.35, 12+i*(fontSize+10)+2, fontColor, DT_LEFT | DT_NOCLIP, player_info.data());
                 }
             }
-//            for(int i=0; i<4; i++)
-//            {
-//                player_info = QString::fromLatin1(&lpSharedMemory->players[i][0]);
-//                if(!player_info.isEmpty())
-//                    String(w*0.20625+681, h*0.748+58*i, D3DCOLOR_ARGB(255, 0, 0, 0), DT_LEFT | DT_NOCLIP, player_info.toStdString().data());
-//                player_info = QString::fromLatin1(&lpSharedMemory->players[i+4][0]);
-//                if(!player_info.isEmpty())
-//                    String(w*0.20625, h*0.748+58*i, D3DCOLOR_ARGB(255, 0, 0, 0), DT_LEFT | DT_NOCLIP, player_info.toStdString().data());
-//            }
-//            qDebug() << "debug 13";
-            QString mapName = QString::fromLatin1(&lpSharedMemory->mapName[0]);
-            if(!mapName.isEmpty())
-            {
-                qDebug() << "downloading map" << mapName;
+            std::string mapName(&lpSharedMemory->mapName[0]);
+            if(!mapName.empty()){
                 int p = lpSharedMemory->downloadProgress/10;
-                if(p!=0)
-                {
+                if(p!=0){
                     std::string progress = std::string(p, '#')+std::string(10-p,' ')+' '+std::to_string(lpSharedMemory->downloadProgress);
-                    String(w*0.35, 15, D3DCOLOR_ARGB(255, fontColor.r, fontColor.g, fontColor.b), DT_LEFT | DT_NOCLIP, QString("Downloading: "+mapName).toStdString().data());
-                    String(w*0.35, 30, D3DCOLOR_ARGB(255, fontColor.r, fontColor.g, fontColor.b), DT_LEFT | DT_NOCLIP, progress.data());
-                }
-                else{
-                    String(w*0.35, 15, D3DCOLOR_ARGB(255, fontColor.r, fontColor.g, fontColor.b), DT_LEFT | DT_NOCLIP, QString("Please re-join").toStdString().data());
-                }
+                    String(w*0.35, 15, fontColor, DT_LEFT | DT_NOCLIP, std::string("Downloading: "+mapName).data());
+                    String(w*0.35, 30, fontColor, DT_LEFT | DT_NOCLIP, progress.data());
+                }else
+                    String(w*0.35, 15, fontColor, DT_LEFT | DT_NOCLIP, "Please re-join");
             }
-//            qDebug() << "debug 14";
-            if(!str.isEmpty())
-            {
-                qDebug() << str;
-                int text_w = GetTextLen(str.toStdString().data());
-                Draw_Box(w*0.35-5,13,text_w+10,fontSize+4,C_BOX,pDevice);
-                Draw_Border(w*0.35-5,13,text_w+10,fontSize+4,1,C_BORDER,pDevice);
-                String(w*0.35, 15, D3DCOLOR_ARGB(255, fontColor.r, fontColor.g, fontColor.b), DT_LEFT | DT_NOCLIP, str.toStdString().data());
+            if(!str.empty()){
+                int text_w = GetTextLen(str.data());
+                Draw_Box(w*0.35-5,12,text_w+10,fontSize+6,C_BOX,pDevice);
+                Draw_Border(w*0.35-5,12,text_w+10,fontSize+6,1,C_BORDER,pDevice);
+                String(w*0.35, 16, fontColor, DT_LEFT | DT_NOCLIP, str.data());
             }
         }
 
         pFont->OnLostDevice();
         pFont->OnResetDevice();
     }
+
     // заменяем первые 5 байт обратно для того чтобы при следующем вызове
     // опять вызывалась эта функция
 //    DWORD res = pEndScene(pDevice);
@@ -225,29 +187,49 @@ long __stdcall HookedPresent9(IDirect3DDevice9* pDevice, const RECT* src, const 
 
 void GetDevice9Methods()
 {
-//    qDebug() << "debug 6";
+    // создаем свое окно
     HWND hWnd = CreateWindowA("STATIC", "dummy", 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    // получаем адрес модуля загруженной в память библиотеки
     HMODULE hD3D9 = LoadLibrary(L"d3d9");
+    // получаем функцию создания устройства рисования
     DIRECT3DCREATE9 Direct3DCreate9 = (DIRECT3DCREATE9)GetProcAddress(hD3D9, "Direct3DCreate9");
+    // создаем объект Direct3D
     IDirect3D9* d3d = Direct3DCreate9(D3D_SDK_VERSION);
-//    qDebug() << "debug 7";
     D3DDISPLAYMODE d3ddm;
     d3d->GetAdapterDisplayMode(0, &d3ddm);
+    // Для успешного создания объекта устройства нужно заполнить
+    // структурную переменную типа D3DPRESENT_PARAMETERS:
     D3DPRESENT_PARAMETERS d3dpp;
+    // Здесь мы заполняем только часть полей, поэтому,
+    // чтобы в остальных полях не оказалось какого-нибудь случайного значения,
+    // вся память, занимаемая переменной, обнуляется (функция ZeroMemory).
     ZeroMemory(&d3dpp, sizeof(d3dpp));
     d3dpp.Windowed = 1;
     d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
     d3dpp.BackBufferFormat = d3ddm.Format;
+
     IDirect3DDevice9* d3dDevice = 0;
+    // создаем устройство рисования (видеокарта) для того чтобы получить адреса функций
     d3d->CreateDevice(0, D3DDEVTYPE_HAL, hWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING, &d3dpp, &d3dDevice);
+    // получаем таблицу адресов функций устройства
     DWORD* vtablePtr = (DWORD*)(*((DWORD*)d3dDevice));
+
+    // получаем адрес функции EndScene (первый способ)
+    // За каждым вызовом BeginScene рано или поздно должен следовать вызов EndScene,
+    // осуществляемый до того, как будет произведено обновление экрана с помощью вызова Present9.
+    // Когда вызов EndScene завершается успешно, сцена ставится в очередь для визуализации драйвером.
+    // Этот метод не является синхронным, поэтому завершение рендеринга сцены к моменту возврата из метода не гарантируется.
+//    dwEndScene = vtablePtr[42] - (DWORD)hD3D9;
+    // получаем адрес функции Present9 (второй способ)
+    // Предоставляет для отображения содержимое следующего буфера в последовательности задних буферов, принадлежащей устройству.
     dwEndScene = vtablePtr[42] - (DWORD)hD3D9;
     present9 = vtablePtr[17] - (DWORD)hD3D9;
+//    dwReset = vtablePtr[16] - (DWORD)hD3D9;
+    // освобождаем устройство, так как больше оно не нужно
     d3dDevice->Release();
     d3d->Release();
     FreeLibrary(hD3D9);
     CloseHandle(hWnd);
-//    qDebug() << "debug 8" << dwEndScene;
 }
 
 PVOID D3Ddiscover(void *tbl, int size)
@@ -261,7 +243,7 @@ PVOID D3Ddiscover(void *tbl, int size)
 
     LPDIRECT3D9            pD3D;
     LPDIRECT3DDEVICE9    pD3Ddev;
-    if ((pD3D = Direct3DCreate9(D3D_SDK_VERSION)) != nullptr)
+    if ((pD3D = Direct3DCreate9(D3D_SDK_VERSION)) != NULL)
 
     {
         ZeroMemory(&d3dpp, sizeof(d3dpp));
@@ -284,54 +266,52 @@ PVOID D3Ddiscover(void *tbl, int size)
 
 void HookDevice9Methods()
 {
-//    DWORD        vTable[105];
+    DWORD vTable[105];
     HMODULE hD3D9 = GetModuleHandle(L"d3d9.dll");
     pEndScene = (oEndScene)((DWORD)hD3D9 + present9);
-//    pEndScene = (oEndScene)((DWORD)hD3D9 + dwEndScene);
     jmpbES[0] = 0xE9;
     DWORD addr = (DWORD)HookedPresent9 - (DWORD)pEndScene - 5;
-//    DWORD addr = (DWORD)myEndScene - (DWORD)pEndScene - 5;
     memcpy(jmpbES + 1, &addr, sizeof(DWORD));
     memcpy(CodeFragmentES, (PBYTE)pEndScene, 5);
     VirtualProtect((PBYTE)pEndScene, 8, PAGE_EXECUTE_READWRITE, &dwOldProtectES);
-//    if (D3Ddiscover((void *)&vTable[0], 420) == 0) return;
-//    {
-//        Sleep(100);
-//    }
     memcpy((PBYTE)pEndScene, jmpbES, 5);
+    if (D3Ddiscover((void *)&vTable[0], 420) == 0) return;
+    {
+        Sleep(100);
+    }
 }
 
 HRESULT WINAPI Hook()
 {
-//    qDebug() << "debug 1";
-//    hSharedMemory = OpenFileMapping(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, L"DXHook-Shared-Memory");
+    QSettings settings("stats.ini", QSettings::IniFormat);
     hSharedMemory = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(TGameInfo), L"DXHook-Shared-Memory");
-//    qDebug() << "debug 2";
     if(hSharedMemory != nullptr)
     {
-//        qDebug() << "debug 3";
         lpSharedMemory = (PGameInfo)MapViewOfFile(hSharedMemory, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, 0);
         memset(lpSharedMemory, 0, sizeof(TGameInfo));
-        QSettings settings("stats.ini", QSettings::IniFormat);
+
         fontSize = settings.value("utils/fontSize", 14).toInt();
-        font = settings.value("utils/font", "Gulim").toString();
-        QString color = settings.value("utils/color", "0xFFFFFF").toString();
         bool bStatus = false;
-        uint icolor = color.toUInt(&bStatus,16);
-        fontColor.r = icolor / 0x10000;
-        fontColor.g = (icolor / 0x100) % 0x100;
-        fontColor.b = icolor % 0x100;
-//        qDebug() << "debug 4";
+        font = settings.value("utils/font", "Gulim").toString().toStdString();
+        uint icolor = settings.value("utils/color", "0xFFFFFF").toString().toUInt(&bStatus,16);
+        if(bStatus)
+            fontColor = D3DCOLOR_ARGB(255, icolor / 0x10000,
+                                  (icolor / 0x100) % 0x100,
+                                  icolor % 0x100);
+
     }
-    if (hooked == false)
+    bool enableDXHook = settings.value("settings/enableDXHook", true).toBool();
+    if (enableDXHook&&!hooked)
     {
-//        qDebug() << "debug 5";
         GetDevice9Methods();
-//        qDebug() << "debug 9";
         HookDevice9Methods();
-//        qDebug() << "debug 10";
+//        HookPresent9();
+//        HookEndScene();
+//        HookReset();
         hooked = true;
     }
+//    QProcess ssstats;
+//    ssstats.startDetached("SSStatsUpdater.exe");
     return 0;
 }
 
@@ -339,7 +319,6 @@ BOOL WINAPI DllMain(HMODULE hDll, DWORD dwReason, LPVOID lpReserved)
 {
     if (dwReason==DLL_PROCESS_ATTACH)
     {
-        logger.installLog();
         DisableThreadLibraryCalls(hDll);
         new_My_Thread(Hook);
     }
@@ -347,7 +326,6 @@ BOOL WINAPI DllMain(HMODULE hDll, DWORD dwReason, LPVOID lpReserved)
     {
         UnmapViewOfFile(lpSharedMemory);
         CloseHandle(hSharedMemory);
-        logger.finishLog();
     }
     return TRUE;
 }
