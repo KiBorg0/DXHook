@@ -1,18 +1,13 @@
 #include "cMemory.h"
-#include <QDebug>
 
-
-
-
-
-BOOL   cMemory::bCompare(const BYTE* pData, const BYTE* bMask, const char* szMask)
+BOOL bCompare(const BYTE* pData, const BYTE* bMask, const char* szMask)
 {
 	for(;*szMask;++szMask,++pData,++bMask)
 		if(*szMask=='x' && *pData!=*bMask) 
 			return false;
 	return (*szMask) == NULL;
 }
-DWORD  cMemory::FindPattern(DWORD dwAddress,DWORD dwLen,BYTE *bMask, const char * szMask)
+DWORD FindPattern(DWORD dwAddress,DWORD dwLen,BYTE *bMask,char * szMask)
 {
 	for(DWORD i=0; i < dwLen; i++)
 		if( bCompare((BYTE*)(dwAddress+i),bMask,szMask))
@@ -20,14 +15,14 @@ DWORD  cMemory::FindPattern(DWORD dwAddress,DWORD dwLen,BYTE *bMask, const char 
 
 	return 0;
 }
-void * cMemory::Create_Hook(BYTE *src, const BYTE *dst, const int len)
+void *Create_Hook(BYTE *src, const BYTE *dst, const int len)
 {
 	BYTE *jmp;
 	DWORD dwback;
 	DWORD jumpto, newjump;
 
 	VirtualProtect(src,len,PAGE_READWRITE,&dwback);
-    qDebug() << src[0];
+
 	if(src[0] == 0xE9)
 	{
 		jmp = (BYTE*)malloc(10);
@@ -41,7 +36,6 @@ void * cMemory::Create_Hook(BYTE *src, const BYTE *dst, const int len)
 	}
 	else
 	{
-        qDebug() << "src[0] != 0xE9";
 		jmp = (BYTE*)malloc(5+len);
 		memcpy(jmp,src,len);
 		jmp += len;
@@ -55,16 +49,4 @@ void * cMemory::Create_Hook(BYTE *src, const BYTE *dst, const int len)
 		src[i] = 0x90;
 	VirtualProtect(src,len,dwback,&dwback);
 	return (jmp-len);
-}
-
-
-
-
-cMemory::cMemory(void)
-{
-}
-
-
-cMemory::~cMemory(void)
-{
 }

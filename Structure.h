@@ -1,9 +1,7 @@
 #pragma once
 
-
 struct cFun
 {
-
     bool _WallHack,
 		 _XHair,
 		 _Trace,
@@ -26,10 +24,6 @@ struct cFun
 		 _resp,
 		 _esp,
 		 _tusa;
-
-
-
-
 	int  _Head,
 		 _Terr,
 		 _Cop,
@@ -38,7 +32,5 @@ struct cFun
 		 _Damage,
 		 _jumpV,
 		 _SH;
-
-
 };
 extern cFun Fun;
