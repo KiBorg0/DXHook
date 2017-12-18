@@ -15,6 +15,8 @@
 #include "cRender.h"
 #include "logger.h"
 #include "cMemory.h"
+//#include "..\SSStats\systemwin32.h"
+
 Logger logger;
 cRender Render;
 CDraw Draw;
@@ -52,7 +54,8 @@ PDWORD Direct3D_VMTable = NULL;
 typedef LPDIRECT3D9 (WINAPI* DIRECT3DCREATE9)(unsigned int);
 //edit if you want to work for the game
 typedef HRESULT (WINAPI* oReset)( LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters );
-typedef HRESULT	(WINAPI* oEndScene)(LPDIRECT3DDEVICE9 pDevice);
+//typedef HRESULT	(WINAPI* oEndScene)(LPDIRECT3DDEVICE9 pDevice);
+typedef HRESULT	(WINAPI* oEndScene)(LPDIRECT3DDEVICE9 pDevice/*, const RECT* src, const RECT* dest, HWND hWnd, const RGNDATA* unused*/);
 oEndScene pEndScene = NULL;
 oReset pReset = NULL;
 DWORD height, width;
@@ -76,10 +79,193 @@ int mainFontSize = 14;
 int titleFontSize = 14;
 //QString hotKey = "F9";
 //int version = 0;
+bool closeWithGame = false;
+bool mCanCurrentlyRender = true;
 QString version_str = "0.0.0";
 D3DCOLOR fontColor = ORANGE(255);
-string font = "Gulim";
-//QVector<short> key_comb;
+
+#define Detour_Type_0xE9 1
+#define Detour_Type_0xB8 2
+#define Detour_Type_0x68 3
+#define Detour_Type_0xE8 4
+
+DWORD CreateDetour(DWORD dwThread,DWORD dwAdress,DWORD dwType,DWORD dwSize)
+{
+        DWORD dwDetour,dwProtect,i;
+        if (dwAdress&&dwThread&&dwSize>= dwSize)
+        {
+                dwDetour = (DWORD)VirtualAlloc(0,dwSize+dwSize,0x1000,0x40);
+                if (dwDetour&&VirtualProtect((VOID*)dwAdress,dwSize,0x40,&dwProtect))
+                {
+                        for (i=0;i<dwSize;i++)
+                        {
+                                *(BYTE*)(dwDetour+i)=*(BYTE*)(dwAdress+i);
+                        }
+                        switch (dwType)
+                        {
+                            case Detour_Type_0xE9:
+                                {
+                                    *(BYTE*)(dwDetour+dwSize+0)=0xE9;
+                                    *(DWORD*)(dwDetour+dwSize+1)=(dwAdress-dwDetour-dwSize);
+                                    *(BYTE*)(dwAdress+0)=0xE9;
+                                    *(DWORD*)(dwAdress+1)=(dwThread-dwAdress-dwSize);
+                                }
+                                break;
+                                case Detour_Type_0xB8:
+                                {
+                                    *(BYTE*)(dwDetour+dwSize+0)=0xB8;
+                                    *(DWORD*)(dwDetour+dwSize+1)=(dwAdress+dwSize);
+                                    *(WORD*)(dwDetour+dwSize+5)=0xE0FF;
+                                    *(BYTE*)(dwAdress+0)=0xB8;
+                                    *(DWORD*)(dwAdress+1)=(dwThread);
+                                    *(WORD*)(dwAdress+5)=0xE0FF;
+                                }
+                                break;
+                                case Detour_Type_0x68:
+                                {
+                                    *(BYTE*)(dwDetour+dwSize+0)=0x68;
+                                    *(DWORD*)(dwDetour+dwSize+1)=(dwAdress+dwSize);
+                                    *(WORD*)(dwDetour+dwSize+5)=0xC3;
+                                    *(BYTE*)(dwAdress+0)=0x68;
+                                    *(DWORD*)(dwAdress+1)=(dwThread);
+                                    *(WORD*)(dwAdress+5)=0xC3;
+                                }
+                                break;
+                        }
+                        VirtualProtect((VOID*)dwAdress,dwSize,dwProtect,&dwProtect);
+                        VirtualProtect((VOID*)dwDetour,dwSize+dwSize,0x20,&dwProtect);
+                        return dwDetour;
+                }
+        }
+        Sleep(10);
+        return (0);
+}
+
+static LPDIRECT3DDEVICE9 pNDevice;
+DWORD GetEndScene;
+DWORD RetEndScene;
+
+BYTE HOOK_PAT_8[] = { "\x8B\xFF\x55\x8B\xEC\xFF\x75\x08\x8B\x01\x6A\x3E\xFF\x90\xF4\x00" };
+CHAR HOOK_MAS_8[] = { "xxxxxxxxxxxxxxx?" };
+
+BYTE HOOK_PAT_7[] = { "\x8B\xFF\x55\x8B\xEC\x8B\x55\x08\x8B\x01\x8B\x80\xF4\x00\x00\x00\x52\x6A\x3E\xFF\xD0\x5D\xC2\x04\x00" };
+CHAR HOOK_MAS_7[] = { "xxxxxxxxxxxxxxxxxxxxxxxxx" };
+
+BYTE HOOK_PAT_XP[] = {"\x8B\xFF\x55\x8B\xEC\x8B\x55\x08\x8B\x01\x52\x6A\x3E"};
+CHAR HOOK_MAS_XP[] = {"xxxxxxxxxxxxx"};
+
+
+void InstallES( LPDIRECT3DDEVICE9 pNDevice )
+{
+    UNREFERENCED_PARAMETER(pNDevice);
+    //Draw Something
+}
+
+void MyRender()
+{
+    qDebug() << "MyRender";
+    InstallES(pNDevice);
+}
+
+__declspec() void MidFunction_EndScene()
+{
+    asm volatile (
+        "mov %edi, %edi\n\t"
+        "push %ebp\n\t"
+        "mov %ebp, %esp\n\t");
+    asm volatile (
+        "mov %0, %%esi\n\t"
+        :"=r"(pNDevice));
+    asm volatile ("pushal\n\t"
+        "call %P0\n\t"::"i"(MyRender)
+        );
+    asm volatile ("popal\n\t"
+        "jmp *%0\n\t"
+        :"=r"(RetEndScene)
+        );
+//        : "r"(pNDevice)
+
+//        : "r"(RetEndScene)
+//    );
+//    asm volatile ("call %P0\n\t": :"i"(MyRender));
+//    __asm__ (".intel_syntax noprefix\n\t"
+//    "mov edi, edi\n\t"
+//    "push ebp\n\t"
+//    "mov ebp, esp\n\t"
+//    "mov pNDevice, esi\n\t"
+//    "pushad\n\t"
+//    "call[MyRender]\n\t"
+//    "popad\n\t"
+//    "jmp[RetEndScene]\n\t"
+//    );
+
+
+//    __asm
+//    {
+//        mov edi, edi
+//        push ebp
+//        mov ebp, esp
+//        mov pNDevice, esi
+//        pushad
+//        call[Render]
+//        popad
+//        jmp[RetEndScene]
+//    }
+}
+
+bool CheckWindowsVersion(DWORD dwMajorVersion, DWORD dwMinorVersion, DWORD dwProductType)
+{
+    OSVERSIONINFOEX VersionInfo;
+    ZeroMemory(&VersionInfo, sizeof(OSVERSIONINFOEX));
+    VersionInfo.dwOSVersionInfoSize = sizeof(VersionInfo);
+    GetVersionEx((OSVERSIONINFO*) &VersionInfo);
+    if (VersionInfo.dwMajorVersion == dwMajorVersion)
+    {
+        if (VersionInfo.dwMinorVersion == dwMinorVersion)
+        {
+            if (VersionInfo.wProductType == dwProductType)
+            {
+                qDebug() << dwMajorVersion << dwMinorVersion << "VER_NT_WORKSTATION";
+                return (TRUE);
+            }
+        }
+    }
+    return (FALSE);
+}
+
+
+unsigned __stdcall InstallHook(LPVOID Param)
+{
+    UNREFERENCED_PARAMETER(Param);
+    DWORD hd3d9 = 0;
+    while (!hd3d9) hd3d9 = (DWORD)GetModuleHandle(L"d3d9.dll");
+    DWORD *vtbl;
+    DWORD adr;
+    if (CheckWindowsVersion(6, 2, VER_NT_WORKSTATION)) // Windows 8 / 8.1
+    {
+        qDebug() << "GetEndScene";
+        GetEndScene = FindPattern((DWORD) hd3d9, 0xFFFFFF, (PBYTE) HOOK_PAT_8, (PCHAR) HOOK_MAS_8);
+    }
+    else if (CheckWindowsVersion(6, 0, VER_NT_WORKSTATION) || CheckWindowsVersion(6, 1, VER_NT_WORKSTATION)) // Windows 7 / Vista
+    {
+        GetEndScene = FindPattern((DWORD) hd3d9, 0xFFFFFF, (PBYTE) HOOK_PAT_7, (PCHAR) HOOK_MAS_7);
+    }
+    else if (CheckWindowsVersion(5, 1, VER_NT_WORKSTATION) || CheckWindowsVersion(5, 2, VER_NT_WORKSTATION)) // Windows XP
+    {
+        GetEndScene = FindPattern((DWORD) hd3d9, 0xFFFFFF, (PBYTE) HOOK_PAT_XP, (PCHAR) HOOK_MAS_XP);
+    }
+    qDebug() << "adr";
+    adr = FindPattern((DWORD) hd3d9, 0x128000, (PBYTE)"\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx");
+    qDebug() << "memcpy";
+    memcpy(&vtbl, (void*) (adr + 2), 4);
+    RetEndScene = GetEndScene + 0x5;
+//    RetEndScene = (oEndScene)(VTable[42]);
+//    RetEndScene = vtbl[42];
+    qDebug() << "CreateDetour";
+    CreateDetour((DWORD) MidFunction_EndScene, (DWORD) GetEndScene, Detour_Type_0xE9, 5);
+    qDebug() << "InstallHook return";
+    return 1;
+}
 
 void initFonts(LPDIRECT3DDEVICE9 pDevice){
     qDebug() << "Device changed from" << oldDevice << "to" << pDevice;
@@ -91,72 +277,52 @@ void initFonts(LPDIRECT3DDEVICE9 pDevice){
     GetWindowRect(cparams.hFocusWindow, &rect);
     height = abs(rect.bottom - rect.top);
     width = abs(rect.right - rect.left);
-    qDebug() << "screen width:" << width << "screen height:" << height;
-    switch (height) {
-    case 600:
-        mainFontSize = 12;
+    if(height<640){
+        mainFontSize =  12;
         titleFontSize = 12;
-    case 640:
-        mainFontSize = 14;
+    } else if(height<768){
+        mainFontSize =  14;
         titleFontSize = 14;
-    case 720:
-        mainFontSize = 14;
-        titleFontSize = 14;
-        break;
-    case 768:
-        mainFontSize = 16;
+    } else if(height<1024){
+        mainFontSize =  16;
         titleFontSize = 16;
-        break;
-    case 780:
-        mainFontSize = 16;
-        titleFontSize = 16;
-        break;
-    case 800:
-        mainFontSize = 16;
-        titleFontSize = 16;
-        break;
-    case 1024:
-        mainFontSize = 18;
+    } else if(height<1280){
+        mainFontSize =  18;
         titleFontSize = 18;
-        break;
-    case 1280:
-        mainFontSize = 20;
+    } else if(height<1600){
+        mainFontSize =  20;
         titleFontSize = 20;
-        break;
-    case 1600:
-        mainFontSize = 22;
+    } else if(height<2200){
+        mainFontSize =  22;
         titleFontSize = 22;
-        break;
-    default:
-        mainFontSize = 14;
-        titleFontSize = 14;
-        break;
     }
+    qDebug() << "screen width:" << width
+             << "screen height:" << height
+             << "font size:" << mainFontSize;
+    Render.setMenuParams(titleFontSize, width, height);
 
     qDebug() << "Release fonts";
+    Draw.SetDevice(pDevice);
     Draw.ReleaseFonts();
+    Render.setDevice(pDevice);
+    Render.ReleaseFonts();
+
     qDebug() << "Init fonts";
-    Draw.AddFont(font.data(), mainFontSize, false, false);
-    Draw.AddFont("Tahoma", 15, false, false);
-    Draw.AddFont("Verdana", 15, true, false);
-    Draw.AddFont("Verdana", 13, true, false);
-    Draw.AddFont("Comic Sans MS", 30, true, false);
+    Draw.AddFont("Gulim", mainFontSize, false, false);
+//    Draw.AddFont("Tahoma", 15, false, false);
+//    Draw.AddFont("Verdana", 15, true, false);
+//    Draw.AddFont("Verdana", 13, true, false);
+//    Draw.AddFont("Comic Sans MS", 30, true, false);
+    bool success = false;
     if(AddFontResourceA("Engine/Locale/English/data/font/engo.ttf"))
-    {
-        Render.AddFont("GothicRus", titleFontSize, false, false);
-        Draw.AddFont("GothicRus", 15, false, false);
-    }
-    else{
+        success = Render.AddFont("GothicRus", titleFontSize, false, false);
+    if(!success)
         Render.AddFont("Arial", titleFontSize, false, false);
-        Draw.AddFont("Arial", 10, false, false);
-    }
-    if(AddFontResourceA("Engine/Locale/English/data/font/ansnb___.ttf"))
-    {
-        Render.AddFont("Arial Unicode MS", titleFontSize, false, false);
-    }
-    else{
-        Render.AddFont(font.data(), mainFontSize, false, false);
-    }
+//    success = false;
+//    if(AddFontResourceA("Engine/Locale/English/data/font/ansnb___.ttf"))
+//        success = Render.AddFont("Arial Unicode MS", mainFontSize, false, false);
+//    if(!success)
+    Render.AddFont("Arial", mainFontSize, false, false);
 }
 
 // проблема заключается в стимовском оверлее,
@@ -165,94 +331,127 @@ void initFonts(LPDIRECT3DDEVICE9 pDevice){
 // из за этого резет не выполняется
 HRESULT APIENTRY HookedReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters )
 {
-    if(oldDevice!=pDevice){
-        qDebug() << "Reset";
-        Draw.SetDevice(pDevice);
-        Render.setDevice(pDevice);
-        Render.ReleaseFonts();
-        initFonts(pDevice);
-    }
-//    qDebug() << "Reset is hooked" << (PDWORD)*(((PDWORD)pReset)+1);
-    BYTE* CDRES = (BYTE*)pReset;
-    CDRES[0] = CodeFragmentRES[0];
-    *((DWORD*)(CDRES + 1)) = *((DWORD*)(CodeFragmentRES + 1));
+    if(oldDevice!=pDevice) initFonts(pDevice);
 
     HRESULT hr = pDevice->TestCooperativeLevel();
-    if (FAILED(hr))
-    {
-        qDebug() << DXGetErrorString9A(hr);
-        // Device lost, stay idle till we can reset it
-        if (hr == D3DERR_DEVICELOST)
-        {
-            Sleep(50);
-        }
-        //        else if (hr == D3DERR_DEVICENOTRESET)
-        //        {
-        //            // Call lost device to release affected interface
-        //            OnLostDevice();
-        //            // Reset device
-        //            OnResetDevice();
-        //        }
-    }
+    if (FAILED(hr)) qDebug() << DXGetErrorString9A(hr);
+//    {
 
+//        // Device lost, stay idle till we can reset it
+//        if (hr == D3DERR_DEVICELOST)
+//            Sleep(50);
+//        else if (hr == D3DERR_DEVICENOTRESET)
+//    }
 
     // Освобождает все ссылки к ресурсам видеопамяти и удаляет все блоки состояния.
     Render.OnLostDevice();
 //    Draw.OnLostDevice();
-//    memcpy((void *)pReset, CodeFragmentRES, 5);
-//    qDebug() << (PDWORD)*(((PDWORD)pReset)+1);
-//    HRESULT hRet = pReset(pDevice, pPresentationParameters);
-    HRESULT hRet = pDevice->Reset(pPresentationParameters);
-//    memcpy((void *)pReset, jmpbRES, 5);
-    if(hRet == D3D_OK) {
+//    Render.ReleaseFonts();
+    memcpy((void *)pReset, CodeFragmentRES, 5);
+    hr = pDevice->Reset(pPresentationParameters);
+    memcpy((void *)pReset, jmpbRES, 5);
+
+    if(SUCCEEDED(hr)) {
         qDebug() << "Reset return is D3D_OK";
         // Этот метод необходимо вызывать после сброса устройства, и перед вызовом любых других методов,
         // если свойство IsUsingEventHandlers установлено на false.
         Render.OnResetDevice();
 //        Draw.OnResetDevice();
+//        Render.AddFont("Arial", titleFontSize, false, false);
     }
-    else{ qDebug() << "Reset return is" << DXGetErrorString9A(hRet);
-//        Render.ReleaseFonts();
-//        Render.AddFont("Arial", 14, false, false);
-//        Render.AddFont(font.data(), 14, false, false);
-//        return hRet;
-    }
+    else
+        qDebug() << "Reset return is" << DXGetErrorString9A(hr);
 
 
-
-//    qDebug() << (PDWORD)*(((PDWORD)pReset)+1);
-
-    CDRES[0] = jmpbRES[0];
-    *((DWORD*)(CDRES + 1)) = *((DWORD*)(jmpbRES + 1));
-
-    return hRet;
+    return hr;
 }
-HRESULT APIENTRY HookedEndScene( LPDIRECT3DDEVICE9 pDevice )
-{
-//    qDebug() << "EndScene is hooked" << (PDWORD)*(((PDWORD)pEndScene)+1);
-    paint(pDevice);
 
+//bool beginSceneInternal(LPDIRECT3DDEVICE9 mD3DDevice)
+//{
+//   // Make sure we have a device
+//   HRESULT res = mD3DDevice->TestCooperativeLevel();
+
+//   int attempts = 0;
+//   const int MaxAttempts = 40;
+//   const int SleepMsPerAttempt = 50;
+//   while(res == D3DERR_DEVICELOST && attempts < MaxAttempts)
+//   {
+//      // Lost device! Just keep querying
+//      res = mD3DDevice->TestCooperativeLevel();
+
+////      Con::warnf("GFXD3D9Device::beginScene - Device needs to be reset, waiting on device...");
+//      qDebug() << "GFXD3D9Device::beginScene - Device needs to be reset, waiting on device...";
+//      Sleep(SleepMsPerAttempt);
+//      attempts++;
+//   }
+
+//   if (attempts >= MaxAttempts && res == D3DERR_DEVICELOST)
+//   {
+////      Con::errorf("GFXD3D9Device::beginScene - Device lost and reset wait time exceeded, skipping reset (will retry later)");
+//      mCanCurrentlyRender = false;
+//      return false;
+//   }
+
+//   // Trigger a reset if we can't get a good result from TestCooperativeLevel.
+//   if(res == D3DERR_DEVICENOTRESET)
+//   {
+////      Con::warnf("GFXD3D9Device::beginScene - Device needs to be reset, resetting device...");
+//      qDebug() << "GFXD3D9Device::beginScene - Device needs to be reset, resetting device...";
+//      // Reset the device!
+//      GFXResource *walk = mResourceListHead;
+//      while(walk)
+//      {
+//         // Find the window target with implicit flag set and reset the device with its presentation params.
+//         if(GFXD3D9WindowTarget *gdwt = dynamic_cast<GFXD3D9WindowTarget*>(walk))
+//         {
+//            if(gdwt->mImplicit)
+//            {
+//               reset(gdwt->mPresentationParams);
+//               break;
+//            }
+//         }
+
+//         walk = walk->getNextResource();
+//      }
+//   }
+
+//   HRESULT hr = mD3DDevice->BeginScene();
+////   D3D9Assert(hr, "GFXD3D9Device::beginSceneInternal - failed to BeginScene");
+//   mCanCurrentlyRender = SUCCEEDED(hr);
+//   return mCanCurrentlyRender;
+//}
+//void PostReset(LPDIRECT3DDEVICE9 pDevice)
+//{
+//    CD3DFont *font = new CD3DFont("Tahoma", 7, D3DFONT_BOLD);
+//    font->InitDeviceObjects(pDevice);
+//    font->RestoreDeviceObjects();
+
+//}
+//void PreReset(void)
+//{
+//    font->InvalidateDeviceObjects();
+//    font->DeleteDeviceObjects();
+//    delete font;
+//    font = NULL;
+//}
+
+HRESULT APIENTRY HookedEndScene(LPDIRECT3DDEVICE9 pDevice/*, const RECT* src, const RECT* dest, HWND hWnd, const RGNDATA* unused*/)
+{
+    HRESULT hRet = D3D_OK;
     HRESULT hr = pDevice->TestCooperativeLevel();
     if (FAILED(hr))
-    {
-        qDebug() << DXGetErrorString9A(hr);
-    }
+        qDebug() << "HookedEndScene TestCooperativeLevel" << DXGetErrorString9A(hr);
+//    pDevice->BeginScene();
+    paint(pDevice);
+//    pDevice->EndScene();
+
     memcpy((void *)pEndScene, CodeFragmentES, 5);
-//    qDebug() << (PDWORD)*(((PDWORD)pEndScene)+1);
-//    BYTE* CDES = (BYTE*)pEndScene;
-//    CDES[0] = CodeFragmentES[0];
-//    *((DWORD*)(CDES + 1)) = *((DWORD*)(CodeFragmentES + 1));
-    memcpy((void *)pEndScene, CodeFragmentES, 5);
-    HRESULT hRet = pDevice->EndScene();
+//    hRet = pDevice->Present(src,dest,hWnd,unused);
+    hRet = pDevice->EndScene();
     memcpy((void *)pEndScene, jmpbES, 5);
-//    CDES[0] = jmpbES[0];
-//    *((DWORD*)(CDES + 1)) = *((DWORD*)(jmpbES + 1));
 
-    if(hRet != D3D_OK)
-        qDebug() << "EndScene return is" << DXGetErrorString9A(hRet);;
-
-//    memcpy((void *)pEndScene, jmpbES, 5);
-//    qDebug() << (PDWORD)*(((PDWORD)pEndScene)+1);
+    if(FAILED(hRet))
+        qDebug() << "HookedEndScene return is" << DXGetErrorString9A(hRet);
 
     return hRet;
 }
@@ -315,7 +514,7 @@ PVOID D3Ddiscover(void *tbl, int size)
     void                 *pInterface = 0;
     D3DPRESENT_PARAMETERS d3dpp;
 
-    if ((hWnd = CreateWindowEx(NULL, WC_DIALOG, L"", WS_OVERLAPPED, 0, 0, 50, 50, NULL, NULL, NULL, NULL)) == NULL) return 0;
+    if ((hWnd = CreateWindowEx(0, WC_DIALOG, L"", WS_OVERLAPPED, 0, 0, 50, 50, NULL, NULL, NULL, NULL)) == NULL) return 0;
     ShowWindow(hWnd, SW_HIDE);
 
     LPDIRECT3D9            pD3D;
@@ -388,7 +587,7 @@ PVOID D3Ddiscover(void *tbl, int size)
 void HookEndScene()
 {
     qDebug() << "HookEndScene";
-    DWORD hD3D9 = NULL;
+    DWORD hD3D9 = 0;
     while (!hD3D9) hD3D9 = (DWORD)GetModuleHandle(L"d3d9.dll");
 
     qDebug() << "pEndScene";
@@ -415,11 +614,12 @@ void HookEndScene()
 
 void HookDevice9Methods(){
     DWORD *VTable;
-    DWORD hD3D9 = NULL;
+    DWORD hD3D9 = 0;
     while (!hD3D9) hD3D9 = (DWORD)GetModuleHandle(L"d3d9.dll");
     DWORD PPPDevice = FindPattern(hD3D9, 0x128000, (PBYTE)"\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx");
+//    DWORD PPPDevice = FindPattern(hD3D9, 0x128000, (PBYTE)"\x8B\xFF\x55\x8B\xEC\x83\xE4\xF8\x83\xEC\x0C\x56\x8B\x75\x08\x85\xF6\x74\x48\x8D\x46\x04\x83\x64\x24\x0C\x00\x83\x78\x18\x00\x89\x44\x24\x08\x75\x3A\xF7\x46\x00\x00\x00\x00\x00\x0F\x85\x00\x00\x00\x00\x6A\x00\xFF\x75\x18\x8B\xCE\xFF\x75\x14\xFF\x75\x10\xFF\x75\x0C\xE8\x00\x00\x00\x00\x8B\xF0\x8D\x4C\x24\x08\xE8\x00\x00\x00\x00", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx?????xx????xxxxxxxxxxxxxxxxx????xxxxxxx????");
     memcpy( &VTable, (void *)(PPPDevice + 2), 4);
-
+//    pEndScene = (oEndScene)(PPPDevice + 0xC);
     pEndScene = (oEndScene)(VTable[42]);
     qDebug() << "pEndScene" << (PDWORD)pEndScene;
     jmpbES[0] = 0xE9;
@@ -429,7 +629,7 @@ void HookDevice9Methods(){
     VirtualProtect((PBYTE)pEndScene, 8, PAGE_EXECUTE_READWRITE, &dwOldProtectES);
     qDebug() << "pEndScene" << (PBYTE)pEndScene << jmpbES;
     memcpy((PBYTE)pEndScene, jmpbES, 5);
-    Sleep(1000);
+//    Sleep(1000);
     pReset = (oReset)(VTable[16]);
     qDebug() << "pReset" << (PDWORD)pReset;
     jmpbRES[0] = 0xE9;
@@ -445,89 +645,22 @@ void HookDevice9Methods(){
 
 DWORD WINAPI Hook(LPVOID Param)
 {
-//    QMap<QString, int> virtual_key_codes;
-//    virtual_key_codes.insert("MouseLeft", 0x01);
-//    virtual_key_codes.insert("MouseRight", 0x02);
-//    virtual_key_codes.insert("MouseMiddle", 0x04);
-//    virtual_key_codes.insert("MouseTop", 0x05);
-//    virtual_key_codes.insert("MouseBottom", 0x06);
-//    virtual_key_codes.insert("Backspace", 0x08);
-//    virtual_key_codes.insert("Tab", 0x09);
-//    virtual_key_codes.insert("Enter", 0x0D);
-//    virtual_key_codes.insert("Shift", 0x10);
-//    virtual_key_codes.insert("Control", 0x11);
-//    virtual_key_codes.insert("Alt", 0x12);
-//    virtual_key_codes.insert("Pause", 0x13);
-//    virtual_key_codes.insert("CapsLock", 0x14);
-//    virtual_key_codes.insert("Escape", 0x1B);
-//    virtual_key_codes.insert("Space", 0x20);
-//    virtual_key_codes.insert("PageUp", 0x21);
-//    virtual_key_codes.insert("PageDown", 0x22);
-//    virtual_key_codes.insert("End", 0x23);
-//    virtual_key_codes.insert("Home", 0x24);
-//    virtual_key_codes.insert("Left", 0x25);
-//    virtual_key_codes.insert("Up", 0x26);
-//    virtual_key_codes.insert("Right", 0x27);
-//    virtual_key_codes.insert("Down", 0x28);
-//    virtual_key_codes.insert("PrintScreen", 0x2C);
-//    virtual_key_codes.insert("Insert", 0x2D);
-//    virtual_key_codes.insert("Delete", 0x2E);
-//    virtual_key_codes.insert("Numpad0", 0x60);
-//    virtual_key_codes.insert("Numpad1", 0x61);
-//    virtual_key_codes.insert("Numpad2", 0x62);
-//    virtual_key_codes.insert("Numpad3", 0x63);
-//    virtual_key_codes.insert("Numpad4", 0x64);
-//    virtual_key_codes.insert("Numpad5", 0x65);
-//    virtual_key_codes.insert("Numpad6", 0x66);
-//    virtual_key_codes.insert("Numpad7", 0x67);
-//    virtual_key_codes.insert("Numpad8", 0x68);
-//    virtual_key_codes.insert("Numpad9", 0x69);
-//    virtual_key_codes.insert("NumpadMultiply", 0x6A);
-//    virtual_key_codes.insert("NumpadPlus", 0x6B);
-//    virtual_key_codes.insert("NumpadSeparator", 0x6C);
-//    virtual_key_codes.insert("NumpadMinus", 0x6D);
-//    virtual_key_codes.insert("NumpadPeriod", 0x6E);
-//    virtual_key_codes.insert("NumpadSlash", 0x6F);
-//    virtual_key_codes.insert("F1", 0x70);
-//    virtual_key_codes.insert("F2", 0x71);
-//    virtual_key_codes.insert("F3", 0x72);
-//    virtual_key_codes.insert("F4", 0x73);
-//    virtual_key_codes.insert("F5", 0x74);
-//    virtual_key_codes.insert("F6", 0x75);
-//    virtual_key_codes.insert("F7", 0x76);
-//    virtual_key_codes.insert("F8", 0x77);
-//    virtual_key_codes.insert("F9", 0x78);
-//    virtual_key_codes.insert("F10", 0x79);
-//    virtual_key_codes.insert("F11", 0x7A);
-//    virtual_key_codes.insert("F12", 0x7B);
-//    virtual_key_codes.insert("NumLock", 0x90);
-//    virtual_key_codes.insert("ScrollLock", 0x91);
-//    virtual_key_codes.insert("Semicolon", 0xBA);
-//    virtual_key_codes.insert("Equal", 0xBB);
-//    virtual_key_codes.insert("Comma", 0xBC);
-//    virtual_key_codes.insert("Minus", 0xBD);
-//    virtual_key_codes.insert("Period", 0xBE);
-//    virtual_key_codes.insert("Slash", 0xBF);
-//    virtual_key_codes.insert("LBracket", 0xDB);
-//    virtual_key_codes.insert("Backslash", 0xDC);
-//    virtual_key_codes.insert("RBracket", 0xDD);
-//    virtual_key_codes.insert("Apostrophe", 0xDE);
-//    virtual_key_codes.insert("Grave", 0xC0);
-
-
     UNREFERENCED_PARAMETER(Param);
-    bool enableDXHook = false;
+    bool enableDXHook = false, runWithGame = true;
     hSharedMemory = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(TGameInfo), L"DXHook-Shared-Memory");
     if(hSharedMemory != nullptr)
     {
         lpSharedMemory = (PGameInfo)MapViewOfFile(hSharedMemory, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, 0);
         if(lpSharedMemory!=nullptr){
+        Render.setGameInfo(lpSharedMemory);
 //        memset(lpSharedMemory, 0, sizeof(TGameInfo));
         QSettings settings("stats.ini", QSettings::IniFormat);
+        runWithGame = settings.value("settings/runWithGame", true).toBool();
         enableDXHook = settings.value("settings/enableDXHook", true).toBool();
 //            enableDXHook = lpSharedMemory->enableDXHook;
         qDebug() << "enableDXHook:" << enableDXHook;
         version_str = settings.value("info/version", "0.0.0").toString();
+        closeWithGame = settings.value("settings/closeWithGame", false).toBool();
 //            version = lpSharedMemory->version;
         qDebug() << "Stats version:" << version_str;
 //        QStringList baseKeys = QStringList(virtual_key_codes.keys());
@@ -572,8 +705,9 @@ DWORD WINAPI Hook(LPVOID Param)
 //        GetDevice9Methods();
 //        HookEndScene();
         HookDevice9Methods();
+//        InstallHook(Param);
     }
-
+    if(!runWithGame) return 0;
 
 //    HANDLE hToken;
 //    PROCESS_INFORMATION pi;
@@ -596,27 +730,47 @@ DWORD WINAPI Hook(LPVOID Param)
 //         ))
 //         return RTN_ERROR;
 //    CreateProcessAsUserA()
-    TCHAR NPath[MAX_PATH];
-    GetCurrentDirectory(MAX_PATH, NPath);
 
-    bool success = false;
-    SHELLEXECUTEINFO ShExecInfo;
-    ShExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-    ShExecInfo.fMask = NULL;
-    ShExecInfo.hwnd = NULL;
-    ShExecInfo.lpVerb = L"runas";
-    ShExecInfo.lpFile = L"SSStatsUpdater.exe";
-    ShExecInfo.lpParameters = NULL;
-    ShExecInfo.lpDirectory = NPath;
-    ShExecInfo.nShow = SW_HIDE;
-    ShExecInfo.hInstApp = NULL;
-    success = ShellExecuteEx(&ShExecInfo);
+    QProcess schtasks;
+    QTextCodec *codec = QTextCodec::codecForName("CP866");
+    schtasks.start("schtasks", {"/Run", "/I", "/tn", "Soulstorm Ladder v2.0", "/HRESULT"});
+    schtasks.waitForFinished();
+    qDebug() << codec->toUnicode(schtasks.readAllStandardOutput()).remove("\r\n")
+             << QString("%1").arg((ulong)schtasks.exitCode(),8,16,QLatin1Char('0')).toUpper();
+    if (schtasks.exitCode()!=0){
+        TCHAR NPath[MAX_PATH];
+        GetCurrentDirectory(MAX_PATH, NPath);
+        SHELLEXECUTEINFO ShExecInfo;
+        ShExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
+        ShExecInfo.fMask = SEE_MASK_NOCLOSEPROCESS|SEE_MASK_FLAG_NO_UI;
+//        ShExecInfo.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI | SEE_MASK_CLASSNAME;
+//        ShExecInfo.lpClass = L"exefile";
+        ShExecInfo.hwnd = NULL;
+        ShExecInfo.lpVerb = L"runas";
+//        ShExecInfo.lpFile = L"SSStatsUpdater.exe";
+        ShExecInfo.lpFile = L"SSStats.exe";
+        ShExecInfo.lpParameters = NULL;
+        ShExecInfo.lpDirectory = NPath;
+        ShExecInfo.nShow = SW_HIDE;
+        ShExecInfo.hInstApp = NULL;
+        qDebug() << QString::fromWCharArray(NPath);
+
+        if(ShellExecuteEx(&ShExecInfo)/*QProcess::startDetached("SSStatsUpdater.exe")*/)
+            qDebug() << "startDetached - Success!";
+        else
+            qDebug() << "startDetached - Failed!" << GetLastError();
+        CloseHandle(ShExecInfo.hProcess);
+    } else
+        qDebug() << "Soulstorm Ladder task successfully runned";
+
+//        qDebug() << "process SSStatsUpdater.exe was not created" << GetLastError();
 
 //    if(CreateProcessA(NULL, "SSStatsUpdater.exe", NULL, NULL, FALSE,
 //    CREATE_NEW_PROCESS_GROUP|CREATE_DEFAULT_ERROR_MODE|DETACHED_PROCESS, NULL, NULL, &si, &pi))
 //        qDebug() << "process SSStatsUpdater.exe created";
 //    else
 //        qDebug() << "process SSStatsUpdater.exe was not created" << GetLastError();
+
 ////        iReturnVal = GetLastError();
 //    if(pi.hProcess)CloseHandle(pi.hProcess);
 //    if(pi.hThread)CloseHandle(pi.hThread);
@@ -694,12 +848,12 @@ DWORD WINAPI Hook(LPVOID Param)
 //    success = CreateProcess(L"SSStatsUpdater.exe", NULL, NULL, NULL, FALSE, dwFlags,
 //                            NULL, NPath, &si, &pinfo);
 //    (LPVOID)lpszCurrentVariable
-    if (success) {
-        qDebug() << "process SSStatsUpdater.exe created";
-//        CloseHandle(pinfo.hThread);
-//        CloseHandle(pinfo.hProcess);
-    }else
-        qDebug() << "process SSStatsUpdater.exe was not created" << GetLastError();
+//    if (return_code) {
+//        qDebug() << "process SSStatsUpdater.exe created";
+////        CloseHandle(pinfo.hThread);
+////        CloseHandle(pinfo.hProcess);
+//    }else
+//        qDebug() << "process SSStatsUpdater.exe was not created" << GetLastError();
 
 
 //    system("SSStatsUpdater.exe");
@@ -709,6 +863,7 @@ DWORD WINAPI Hook(LPVOID Param)
 
 BOOL WINAPI DllMain(HMODULE hDll, DWORD dwReason, LPVOID lpReserved)
 {
+    UNREFERENCED_PARAMETER(lpReserved);
     if (dwReason==DLL_PROCESS_ATTACH)
     {
         DisableThreadLibraryCalls(hDll);
@@ -719,6 +874,15 @@ BOOL WINAPI DllMain(HMODULE hDll, DWORD dwReason, LPVOID lpReserved)
     }
     if (dwReason==DLL_PROCESS_DETACH)
     {
+//        if(closeWithGame){
+//            qDebug() << "closeWithGame" << QProcess::execute("schtasks", {"/End", "/tn", "Soulstorm Ladder v2.0", "/HRESULT"});
+//            systemWin32 processes;
+//            if(processes.findProcess("SSStats.exe")){
+//                processes.closeProcessByName("SSStats.exe");
+//            }
+//        }
+        Draw.ReleaseFonts();
+        Render.ReleaseFonts();
         qDebug() << "----------Detached----------";
         logger.finishLog();
         UnmapViewOfFile(lpSharedMemory);
@@ -745,7 +909,7 @@ HRESULT WINAPI Direct3DCreate9_VMTable(VOID)
     if(VirtualProtect(&Direct3D_VMTable[16], sizeof(DWORD), PAGE_READWRITE, &dwProtect) != 0)
     {
         qDebug() << "hook CreateDevice";
-        *(PDWORD)&CreateDevice_Pointer = Direct3D_VMTable[16];
+        CreateDevice_Pointer = (CreateDevice_Prototype)Direct3D_VMTable[16];
         *(PDWORD)&Direct3D_VMTable[16] = (DWORD)CreateDevice_Detour;
 
         if(VirtualProtect(&Direct3D_VMTable[16], sizeof(DWORD), dwProtect, &dwProtect) == 0)
@@ -791,8 +955,8 @@ HRESULT WINAPI CreateDevice_Detour(LPDIRECT3D9 Direct3D_Object, UINT Adapter, D3
     {
         Direct3D_VMTable = (PDWORD)*(PDWORD)*Returned_pDevice;
 
-        *(PDWORD)&pReset                = (DWORD)Direct3D_VMTable[16];
-        *(PDWORD)&pEndScene             = (DWORD)Direct3D_VMTable[42];
+        pReset                = (oReset)Direct3D_VMTable[16];
+        pEndScene             = (oEndScene)Direct3D_VMTable[42];
 //        *(PDWORD)&DrawIndexedPrimitive_Pointer = (DWORD)Direct3D_VMTable[82];
 
         qDebug() << "hook functions" << (PBYTE)pEndScene << (PBYTE)pReset;
@@ -909,23 +1073,34 @@ HRESULT WINAPI EndScene_Detour(LPDIRECT3DDEVICE9 pDevice)
 
 void paint(LPDIRECT3DDEVICE9 pDevice)
 {
-    if(oldDevice!=pDevice){
-        Draw.SetDevice(pDevice);
-        Render.setDevice(pDevice);
-        Render.ReleaseFonts();
-        initFonts(pDevice);
-    }
-
+    if(oldDevice!=pDevice) initFonts(pDevice);
 //    QString version_str = version? " " + QString::number(version).insert(1, '.').insert(3, '.'):"";
 //    QString version_str = QString(QString::number(version/100)+'.'+
 //            QString::number(version/100)+'.'+
 //            QString::number(version%100));
 //    if(lpSharedMemory->showMenu)
 //        Draw.Text("Soulstorm Ladder 1.0.5", width*0.01,height*0.01, 5, true, ORANGE(128), BLACK(64));
+//    if(!Draw.Font()||!Render.Font()){
+//        Render.OnLostDevice();
+//        Draw.OnLostDevice();
+//        Render.ReleaseFonts();
+//        initFonts(pDevice);
+//    }
+//    else{
 
-    if(lpSharedMemory->showMenu){
-        Render.Init_PosMenu(width-201, 0, QString("Soulstorm Ladder "+version_str).toStdString().data(), &Render.pos_Menu, lpSharedMemory);
-    }
+    if(lpSharedMemory->showMenu)
+        Render.Init_PosMenu(QString("Soulstorm Ladder "+version_str).toStdString().data());
+
+//    HDC hdc;
+//    PAINTSTRUCT ps;
+//    hdc = CreateCompatibleDC(NULL);
+//    hdc = BeginPaint(hWnd, &ps);
+//    RECT rect{0,0,0,0};
+//    HFONT hFont = CreateFontA(18, 0, 0, 0, 300, false, false, false, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, "Arial");
+//    SelectObject(hdc, hFont);
+//    SetTextColor(hdc, RGB(0,128,0));
+//    DrawTextA(hdc, QString("Soulstorm Ladder "+version_str).toStdString().data(), -1, &rect, DT_LEFT|DT_NOCLIP);
+//    if(Render.pFont[0])Render.pFont[0]->DrawTextA(NULL,QString("Soulstorm Ladder "+version_str).toStdString().data(),-1,&rect, DT_LEFT|DT_NOCLIP, ORANGE);
 
     int center_text_pos = width*0.5;
     if(lpSharedMemory->showRaces){
@@ -963,7 +1138,11 @@ void paint(LPDIRECT3DDEVICE9 pDevice)
             Draw.Text(str.data(), center_text_pos-(text_w+12)/2+6, /*height*0.02+*/6, 0, false, fontColor, fontColor);
         }
     }
-
+//        Render.OnLostDevice();
+//        Draw.OnLostDevice();
+//        Render.OnResetDevice();
+//        Draw.OnResetDevice();
+//    }
 //    string mapName(&lpSharedMemory->mapName[0]);
 //    if(!mapName.empty()){
 //        int p = lpSharedMemory->downloadProgress/10;

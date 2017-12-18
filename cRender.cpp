@@ -9,6 +9,12 @@ int Button_Mass[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
     Button_Number = 0,
     Button_Max = 0;
 
+static struct _Keys
+{
+    bool        bPressed;
+    DWORD       dwStartTime;
+}kPressingKeys[256];
+
 QStringList racesUC = QStringList() << "Random" << "Space Marines"
     <<"Chaos" <<"Orks" <<"Eldar" <<"Imperial Guard" <<"Necrons"
     <<"Tau Empire" <<"Sisters of Battle" <<"Dark Eldar";
@@ -59,6 +65,12 @@ cRender::cRender(void)
 
 void cRender::String(int x, int y, DWORD color, const char *text, int font,  DWORD style)
 {
+    if(!pFont[font]) return;
+    HRESULT hr = pDevice->TestCooperativeLevel();
+    if (FAILED(hr))
+    {
+        qDebug() << "HookedEndScene TestCooperativeLevel" << DXGetErrorString9A(hr);
+    }
     RECT rect;
     SetRect(&rect, x, y, x, y);
     // определим размер памяти, необходимый для хранения Unicode-строки
@@ -136,45 +148,45 @@ int cRender::GetTextLen(const char *szString, int font)
 
 BOOL  cRender::State_Key(int Key, DWORD dwTimeOut)
 {
-	if(HIWORD(GetKeyState(Key)))
-	{
-		if(!kPressingKeys[Key].bPressed || (kPressingKeys[Key].dwStartTime && (kPressingKeys[Key].dwStartTime + dwTimeOut) <= GetTickCount()))
-		{
-			kPressingKeys[Key].bPressed = TRUE;
-			if( dwTimeOut > NULL )
-				kPressingKeys[Key].dwStartTime = GetTickCount();
-			return TRUE;
-		}
-	}
-	else
-		kPressingKeys[Key].bPressed = FALSE;
-    return FALSE;
-}
-
-BOOL cRender::State_Key_Combination(QVector<short> key_comb, DWORD dwTimeOut)
-{
-    bool pressed = TRUE;
-    foreach(int key, key_comb){
-        if(HIWORD(GetKeyState(key)))
+    if(HIWORD(GetKeyState(Key)))
+    {
+        if(!kPressingKeys[Key].bPressed || (kPressingKeys[Key].dwStartTime && (kPressingKeys[Key].dwStartTime + dwTimeOut) <= GetTickCount()))
         {
-            if(!kPressingKeys[key].bPressed)
-            {
-                kPressingKeys[key].bPressed = TRUE;
-            }
-        }
-        else{
-            kPressingKeys[key].bPressed = FALSE;
-            pressed = FALSE;
+            kPressingKeys[Key].bPressed = TRUE;
+            if( dwTimeOut > 0 )
+                kPressingKeys[Key].dwStartTime = GetTickCount();
+            return TRUE;
         }
     }
-    if(pressed&&(key_comb_dwStartTime && (key_comb_dwStartTime + dwTimeOut) >= GetTickCount())){
-        if( dwTimeOut > NULL )
-            key_comb_dwStartTime = GetTickCount();
-        return TRUE;
-    }
-
+    else
+        kPressingKeys[Key].bPressed = FALSE;
     return FALSE;
 }
+
+//BOOL cRender::State_Key_Combination(QVector<short> key_comb, DWORD dwTimeOut)
+//{
+//    bool pressed = TRUE;
+//    foreach(int key, key_comb){
+//        if(HIWORD(GetKeyState(key)))
+//        {
+//            if(!kPressingKeys[key].bPressed)
+//            {
+//                kPressingKeys[key].bPressed = TRUE;
+//            }
+//        }
+//        else{
+//            kPressingKeys[key].bPressed = FALSE;
+//            pressed = FALSE;
+//        }
+//    }
+//    if(pressed&&(key_comb_dwStartTime && (key_comb_dwStartTime + dwTimeOut) >= GetTickCount())){
+//        if( dwTimeOut > NULL )
+//            key_comb_dwStartTime = GetTickCount();
+//        return TRUE;
+//    }
+
+//    return FALSE;
+//}
 void cRender::Text(const char *text, float x, float y, int font, bool bordered, DWORD color, DWORD bcolor, int orientation)
 {
    RECT rect;
@@ -236,60 +248,63 @@ void cRender::SHOW_MENU()
 //        if(Button_Mass[0]) { }
     }
 }
-void  cRender::Init_PosMenu(int x,int y,const char* Titl,stMenu* pos_Menu, PGameInfo gameInfo)
+void  cRender::Init_PosMenu(const char* Titl)
 {
-    (*pos_Menu).x = x;
-    (*pos_Menu).y = y+30;
-    (*pos_Menu)._y = y+30;
-    lpSharedMemory = gameInfo;
+    int title_len = GetTextLen(Titl, 0);
+    int menu_margin = 0.8*titleFontSize*((double)h_screen/(double)w_screen);
+    h_menu = titleFontSize+menu_margin*2;
+    w_menu = title_len+menu_margin*2+h_menu;
+    int x = w_screen - w_menu-1;
+    int y = 0;
+    pos_Menu.x = x;
+    pos_Menu.y = y+h_menu+2;
+    pos_Menu._y = y+h_menu+2;
+    Button_Number=0;
 
-        Button_Number=0;
-        Draw_Box(x,y,w_menu,28,DARKGRAY(150));
-        Draw_Border(x,y,w_menu,28,1,SKYBLUE(255));
-        Draw_Border(x+w_menu-28,y,28,28,1,SKYBLUE(255));
-//        Draw_Border(x,y,w_menu,28,1,SKYBLUE(255));
-//        int arrow_pos = w_menu-GetTextLen(Titl, 0)-6;
-        if(IsInBox(x,y,w_menu,28)){
-            Text(Titl, x+(w_menu-28)/2,y+6, 0, 1, C_BUT_text_In, BLACK, 1);
-//            String(x+w_menu/2,y+6,C_BUT_text_In,Titl, 0, C_Text);
-            if (State_Key(VK_LBUTTON,200) ){
-                if (!Button_Mass[Button_Number]){
-                    String(x+w_menu-14, y+6, C_BUT_text_In, "▲", 0, C_Text);
-                    Button_Mass[Button_Number] = 1;
-                }
-                else{
-                    String(x+w_menu-14, y+6, C_BUT_text_In, "▼", 0, C_Text);
-                    for ( int i = 0; i <= lpSharedMemory->playersNumber; i++ )
-                        Button_Mass[i] = 0;
-                }
-            } else if(!Button_Mass[Button_Number])
-                String(x+w_menu-14, y+6, C_BUT_text_In, "▲", 0, C_Text);
+    Draw_Box(x,y,w_menu,h_menu,DARKGRAY(150));
+    Draw_Border(x,y,w_menu,h_menu,1,SKYBLUE(255));
+    Draw_Border(x+w_menu-h_menu,y,h_menu,h_menu,1,SKYBLUE(255));
+
+    D3DCOLOR color = ORANGE(255);
+    if(IsInBox(x,y,w_menu,h_menu)){
+        if (State_Key(VK_LBUTTON,200) ){
+            if (!Button_Mass[Button_Number])
+                Button_Mass[Button_Number] = 1;
+
             else
-                String(x+w_menu-14, y+6, C_BUT_text_In, "▼", 0, C_Text);
+                for ( int i = 0; i <= lpSharedMemory->playersNumber; i++ )
+                    Button_Mass[i] = 0;
         }
-        else
-        {
-            Text(Titl, x+(w_menu-28)/2,y+6, 0, 1, ORANGE(255), BLACK, 1);
-            if(!Button_Mass[Button_Number])
-                String(x+w_menu-14, y+6, ORANGE(255), "▲", 0, C_Text);
-            else
-                String(x+w_menu-14, y+6, ORANGE(255), "▼", 0, C_Text);
-//            String(x+w_menu/2,y+6,ORANGE(255),Titl, 0, C_Text);
-            if(!IsInBox(x,y,w_menu,(*pos_Menu).height_fon+20)){
-                if (State_Key(VK_LBUTTON,200) ){
-                    for ( int i = 0; i <= lpSharedMemory->playersNumber; i++ )
-                        Button_Mass[i] = 0;
-                }
+        color = C_BUT_text_In;
+    }
+    else if(!IsInBox(x,y,w_menu, pos_Menu.height_fon+20)){
+            if (State_Key(VK_LBUTTON,200) ){
+                for ( int i = 0; i <= lpSharedMemory->playersNumber; i++ )
+                    Button_Mass[i] = 0;
             }
         }
 
-        if (Button_Mass[Button_Number])
-        {
-            Button_Number = 1;
-            SHOW_MENU();
-//            Draw_Box((*pos_Menu).x, (*pos_Menu)._y, w_menu,22, C_sub_BOX);
-//            Draw_Border((*pos_Menu).x, (*pos_Menu)._y, w_menu,22,1, C_sub_BORDER);
-        }
+    Text(Titl, x+(w_menu-h_menu)/2, menu_margin, 0, 0, color, BLACK, 1);
+    const char *arrow = Button_Mass[Button_Number]?"▼":"▲";
+    String(x+w_menu-h_menu/2, menu_margin, color, arrow, 0, C_Text);
+
+    if (Button_Mass[Button_Number])
+    {
+        Button_Number = 1;
+        SHOW_MENU();
+    }
+}
+
+void cRender::setGameInfo(PGameInfo gameInfo)
+{
+    lpSharedMemory = gameInfo;
+}
+
+void cRender::setMenuParams(int fontSize, int width, int height)
+{
+    titleFontSize = fontSize;
+    h_screen = height;
+    w_screen = width;
 }
 void  cRender::Draw_GradientBox(float x, float y, float width, float height, DWORD startCol, DWORD endCol, gr_orientation orientation)
 {
@@ -486,41 +501,50 @@ void  cRender::Draw_ScrolBox(stMenu *pos_Menu, char *Text, int &Var, int Maximal
 	(*pos_Menu).height_sub_fon =(*pos_Menu)._y-46;
 }
 
-void cRender::AddFont(const char* Caption, float size, bool bold, bool italic)
+bool cRender::AddFont(const char* Caption, float size, bool bold, bool italic)
 {
-   D3DXCreateFontA(pDevice, size, 0, (bold) ? FW_BOLD : FW_NORMAL, 1, (italic) ? 1 : 0 , DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, Caption, &pFont[FontNr]);
-   ++FontNr;
+    qDebug() << "Render AddFont" << Caption << size << FontNr;
+    HRESULT hr = D3DXCreateFontA(pDevice, size, 0, (bold) ? FW_BOLD : FW_NORMAL, 1, (italic) ? 1 : 0 , DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, Caption, &pFont[FontNr]);
+    if(SUCCEEDED(hr))
+    {
+        ++FontNr;
+        return true;
+    }
+    else
+        qDebug() << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
+    return false;
 }
 
 void cRender::OnResetDevice()
 {
    for(int i = 0; i < FontNr; i++)
        if(pFont[i]){
-           qDebug() << "font" << i << "OnResetDevice()";
            HRESULT hRet = pFont[i]->OnResetDevice();
-           if(hRet != D3D_OK) {
-               qDebug() << "OnResetDevice()" << DXGetErrorString9A(hRet);
-           }
+           qDebug() << "Render OnResetDevice()" << i << DXGetErrorString9A(hRet);
        }
+}
+bool cRender::Font()
+{
+   for(int i=0; i<FontNr; i++)
+      if(!pFont[i]) return false;
+   return true;
 }
 
 void cRender::OnLostDevice()
 {
-   for(int i = 0; i < FontNr; i++)
-       if(pFont[i]){
-           qDebug() << "font" << i << "OnLostDevice()";
-           HRESULT hRet = pFont[i]->OnLostDevice();
-           if(hRet != D3D_OK) {
-               qDebug() << "OnLostDevice()" << DXGetErrorString9A(hRet);
-           }
-       }
+    for(int i = 0; i < FontNr; i++)
+        if(pFont[i]){
+            HRESULT hRet = pFont[i]->OnLostDevice();
+            qDebug() << "Render OnLostDevice()" << i << DXGetErrorString9A(hRet);
+        }
 }
 
 void cRender::ReleaseFonts()
 {
     for(int i = 0; i < FontNr; i++)
         if(pFont[i]){
-            pFont[i]->Release();
+            HRESULT hr = pFont[i]->Release();
+            qDebug() << "Render Release()"<< i <<  DXGetErrorString9A(hr);
         }
     FontNr = 0;
 }
@@ -853,7 +877,7 @@ void CDraw::Text(const char *text, float x, float y, int font, bool bordered, DW
    }
 }
 
-void CDraw::Message(const char *text, float x, float y, int font, int orientation)
+void CDraw::Message(const char *text, LONG x, LONG y, int font, int orientation)
 {
    RECT rect = {x, y, x, y};
 
@@ -914,7 +938,7 @@ void CDraw::Sprite(LPDIRECT3DTEXTURE9 tex, float x, float y, float resolution, f
    pDevice->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
    pDevice->SetFVF(D3DFVF_XYZRHW|D3DFVF_DIFFUSE|D3DFVF_TEX1);
    pDevice->SetPixelShader(NULL);
-   sSprite->Begin(NULL);
+   sSprite->Begin(0);
    sSprite->SetTransform(&mat); // Tell the sprite about the matrix
    sSprite->Draw(tex, NULL, NULL, NULL, 0xFFFFFFFF);
    sSprite->End();
@@ -923,14 +947,17 @@ void CDraw::Sprite(LPDIRECT3DTEXTURE9 tex, float x, float y, float resolution, f
 bool CDraw::Font()
 {
    for(int i=0; i<FontNr; i++)
-      if(pFont[i]) return true;
-   return false;
+      if(!pFont[i]) return false;
+   return true;
 }
 
-void CDraw::AddFont(const char* Caption, float size, bool bold, bool italic)
+HRESULT CDraw::AddFont(const char* Caption, float size, bool bold, bool italic)
 {
-   D3DXCreateFontA(pDevice, size, 0, (bold) ? FW_BOLD : FW_NORMAL, 1, (italic) ? 1 : 0 , DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, Caption, &pFont[FontNr]);
-   ++FontNr;
+    qDebug() << "Draw AddFont" << Caption << size << FontNr;
+    HRESULT hr = D3DXCreateFontA(pDevice, size, 0, (bold) ? FW_BOLD : FW_NORMAL, 1, (italic) ? 1 : 0 , DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, Caption, &pFont[FontNr]);
+    if(SUCCEEDED(hr))
+        ++FontNr;
+    return hr;
 }
 
 //void CDraw::FontReset()
@@ -943,14 +970,26 @@ void CDraw::AddFont(const char* Caption, float size, bool bold, bool italic)
 
 void CDraw::OnResetDevice()
 {
-   for(int i = 0; i < FontNr; i++)
-       if(pFont[i]) pFont[i]->OnResetDevice();
+    for(int i = 0; i < FontNr; i++)
+        if(pFont[i]){
+//            qDebug() << "Draw font" << i << "OnResetDevice()";
+            HRESULT hRet = pFont[i]->OnResetDevice();
+            if(hRet != D3D_OK) {
+//                qDebug() << "Draw OnResetDevice()" << DXGetErrorString9A(hRet);
+            }
+        }
 }
 
 void CDraw::OnLostDevice()
 {
-   for(int i = 0; i < FontNr; i++)
-       if(pFont[i]) pFont[i]->OnLostDevice();
+    for(int i = 0; i < FontNr; i++)
+        if(pFont[i]){
+//            qDebug() << "Draw font" << i << "OnLostDevice()";
+            HRESULT hRet = pFont[i]->OnLostDevice();
+            if(hRet != D3D_OK) {
+//                qDebug() << "Draw OnLostDevice()" << DXGetErrorString9A(hRet);
+            }
+        }
 }
 
 void CDraw::ReleaseFonts()
@@ -986,10 +1025,10 @@ void  CDraw::Draw_Border(int x, int y, int w, int h,int s, D3DCOLOR Color)
 }
 
 
-void CDraw::DrawTextBox(int x, int y, int w, int h, D3DCOLOR Color)
-{
+//void CDraw::DrawTextBox(int x, int y, int w, int h, D3DCOLOR Color)
+//{
 
-}
+//}
 
 int CDraw::GetTextLen(LPCTSTR szString, int font)
 {

@@ -45,12 +45,6 @@ typedef struct{
 
 typedef TGameInfo *PGameInfo;
 
-static struct _Keys
-{
-    bool        bPressed;
-    DWORD       dwStartTime;
-}kPressingKeys[256];
-
 class cRender
 {
 public:
@@ -59,7 +53,11 @@ public:
 	bool Init;
 	bool Show;
 	int w_menu,
+        h_menu,
 		w_sub_menu;
+    int titleFontSize,
+        h_screen,
+        w_screen;
     DWORD key_comb_dwStartTime;
 //	ID3DXFont* pFont;
     ID3DXFont *pFont[MAX_FONTS];
@@ -73,7 +71,8 @@ public:
     };
     stMenu pos_Menu;
 
-    void AddFont(const char* Caption, float size, bool bold, bool italic);
+    bool AddFont(const char* Caption, float size, bool bold, bool italic);
+    bool Font();
     void OnLostDevice();
     void OnResetDevice();
     void ReleaseFonts();
@@ -85,10 +84,12 @@ public:
     void  Draw_Box( int x, int y, int w, int h,   D3DCOLOR Color);
     void  Draw_Border(int x, int y, int w, int h,int s, D3DCOLOR Color);
 	BOOL  IsInBox(int x,int y,int w,int h);
-	BOOL  State_Key(int Key,DWORD dwTimeOut);
-    BOOL  State_Key_Combination(QVector<short> key_comb, DWORD dwTimeOut);
+    BOOL  State_Key(int Key,DWORD dwTimeOut);
+//    BOOL  State_Key_Combination(QVector<short> key_comb, DWORD dwTimeOut);
     void  SHOW_MENU();
-    void  Init_PosMenu(int x, int y, const char *Titl, stMenu* pos_Menu, PGameInfo gameInfo);
+    void  Init_PosMenu(const char *Titl);
+    void  setGameInfo(PGameInfo gameInfo);
+    void  setMenuParams(int fontSize, int width, int height);
     void  Draw_GradientBox(float x, float y, float width, float height, DWORD startCol, DWORD endCol, gr_orientation orientation );
     int GetTextLen(LPCTSTR szString, int font);
     int GetTextLen(const char *szString, int font);
@@ -156,7 +157,7 @@ public:
    void String(int x, int y, DWORD color, const char *text, int font,  DWORD style);
    void StringChar(int x, int y, DWORD color, const char *text, int font,  DWORD style);
    void String(int x, int y, DWORD color, LPCTSTR text, int font,  DWORD style);
-   void DrawTextBox(int x, int y, int w, int h,   D3DCOLOR Color);
+//   void DrawTextBox(int x, int y, int w, int h,   D3DCOLOR Color);
    void Draw_Box(int x, int y, int w, int h,   D3DCOLOR Color);
    void Draw_Border(int x, int y, int w, int h,int s, D3DCOLOR Color);
    void Box(float x, float y, float w, float h, float linewidth, DWORD color);
@@ -168,12 +169,12 @@ public:
    void CircleFilled(float x, float y, float rad, float rotate, int type, int resolution, DWORD color);
 
    void Text(const char *text, float x, float y, int font, bool bordered, DWORD color, DWORD bcolor, int orientation=0);
-   void Message(const char *text, float x, float y, int font, int orientation=0);
+   void Message(const char *text, LONG x, LONG y, int font, int orientation=0);
    //=============================================================================================
 
    //=============================================================================================
    bool Font();
-   void AddFont(const char *Caption, float size, bool bold, bool italic);
+   HRESULT AddFont(const char *Caption, float size, bool bold, bool italic);
    void FontReset();
    void OnLostDevice();
    void OnResetDevice();
