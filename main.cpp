@@ -25,40 +25,16 @@ using namespace std;
 #define BUFSIZE 4096
 void paint(LPDIRECT3DDEVICE9 pDevice);
 
-//=====================================================================================
-
-typedef HRESULT (WINAPI* CreateDevice_Prototype)        (LPDIRECT3D9, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, LPDIRECT3DDEVICE9*);
-typedef HRESULT (WINAPI* Reset_Prototype)               (LPDIRECT3DDEVICE9, D3DPRESENT_PARAMETERS*);
-typedef HRESULT (WINAPI* EndScene_Prototype)            (LPDIRECT3DDEVICE9);
-typedef HRESULT (WINAPI* DrawIndexedPrimitive_Prototype)(LPDIRECT3DDEVICE9, D3DPRIMITIVETYPE, INT, UINT, UINT, UINT, UINT);
-
-CreateDevice_Prototype         CreateDevice_Pointer         = NULL;
-Reset_Prototype                Reset_Pointer                = NULL;
-EndScene_Prototype             EndScene_Pointer             = NULL;
-DrawIndexedPrimitive_Prototype DrawIndexedPrimitive_Pointer = NULL;
-
-HRESULT WINAPI Direct3DCreate9_VMTable    (VOID);
-HRESULT WINAPI CreateDevice_Detour        (LPDIRECT3D9, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, LPDIRECT3DDEVICE9*);
-HRESULT WINAPI Reset_Detour               (LPDIRECT3DDEVICE9, D3DPRESENT_PARAMETERS*);
-HRESULT WINAPI EndScene_Detour            (LPDIRECT3DDEVICE9);
-HRESULT WINAPI DrawIndexedPrimitive_Detour(LPDIRECT3DDEVICE9, D3DPRIMITIVETYPE, INT, UINT, UINT, UINT, UINT);
-
-PBYTE HookVTableFunction( PDWORD* dwVTable, PBYTE dwHook, INT Index );
-DWORD WINAPI VirtualMethodTableRepatchingLoopToCounterExtensionRepatching(LPVOID);
-PDWORD Direct3D_VMTable = NULL;
-
-//=====================================================================================
-
-typedef LPDIRECT3D9 (WINAPI* DIRECT3DCREATE9)(unsigned int);
-//edit if you want to work for the game
 typedef HRESULT (WINAPI* oReset)( LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters );
-//typedef HRESULT	(WINAPI* oEndScene)(LPDIRECT3DDEVICE9 pDevice);
 typedef HRESULT	(WINAPI* oEndScene)(LPDIRECT3DDEVICE9 pDevice);
+typedef HRESULT	(WINAPI* oPresent)(LPDIRECT3DDEVICE9 pDevice, const RECT *pSourceRect, const RECT *pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion);
 oEndScene pEndScene = NULL;
 oReset pReset = NULL;
+oPresent pPresent = NULL;
 DWORD height, width;
-DWORD dwEndScene;
-DWORD dwReset;
+BYTE CodeFragmentPR[5] = {0};
+BYTE jmpbPR[5] = {0xE9, 0x0, 0x0, 0x0, 0x0};
+DWORD dwOldProtectPR = 0;
 BYTE CodeFragmentES[5] = {0};
 BYTE jmpbES[5] = {0xE9, 0x0, 0x0, 0x0, 0x0};
 DWORD dwOldProtectES = 0;
@@ -158,7 +134,25 @@ HRESULT APIENTRY HookedReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* p
     return hr;
 }
 
-HRESULT APIENTRY HookedEndScene(LPDIRECT3DDEVICE9 pDevice/*, const RECT* src, const RECT* dest, HWND hWnd, const RGNDATA* unused*/)
+HRESULT APIENTRY HookedPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pSourceRect, const RECT *pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion)
+{
+    HRESULT hRet = D3D_OK;
+    HRESULT hr = pDevice->TestCooperativeLevel();
+    if (FAILED(hr))
+        qDebug() << "HookedEndScene TestCooperativeLevel" << DXGetErrorString9A(hr);
+    paint(pDevice);
+
+    memcpy((void *)pPresent, CodeFragmentPR, 5);
+    hRet = pDevice->Present(pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
+    memcpy((void *)pPresent, jmpbPR, 5);
+
+    if(FAILED(hRet))
+        qDebug() << "HookedEndScene return is" << DXGetErrorString9A(hRet);
+
+    return hRet;
+}
+
+HRESULT APIENTRY HookedEndScene(LPDIRECT3DDEVICE9 pDevice)
 {
     HRESULT hRet = D3D_OK;
     HRESULT hr = pDevice->TestCooperativeLevel();
@@ -177,20 +171,40 @@ HRESULT APIENTRY HookedEndScene(LPDIRECT3DDEVICE9 pDevice/*, const RECT* src, co
 }
 
 void HookDevice9Methods(){
+
     DWORD *VTable;
     DWORD hD3D9 = 0;
     while (!hD3D9) hD3D9 = (DWORD)GetModuleHandle(L"d3d9.dll");
+    // получаем адрес устройства
     DWORD PPPDevice = FindPattern(hD3D9, 0x128000, (PBYTE)"\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx");
+    qDebug() << "PPPDevice" << (PDWORD)PPPDevice << (void *)(PPPDevice + 2);
+    // пропустив C706 копируем адресс таблицы функций в указатель на VTable
     memcpy( &VTable, (void *)(PPPDevice + 2), 4);
-    pEndScene = (oEndScene)(VTable[42]);
-    qDebug() << "pEndScene" << (PDWORD)pEndScene;
-    jmpbES[0] = 0xE9;
-    DWORD addrES = (DWORD)HookedEndScene - (DWORD)pEndScene - 5;
-    memcpy(jmpbES + 1, &addrES, sizeof(DWORD));
-    memcpy(CodeFragmentES, (PBYTE)pEndScene, 5);
-    VirtualProtect((PBYTE)pEndScene, 8, PAGE_EXECUTE_READWRITE, &dwOldProtectES);
-    qDebug() << "pEndScene" << (PBYTE)pEndScene << jmpbES;
-    memcpy((PBYTE)pEndScene, jmpbES, 5);
+    qDebug() << "VTable" << VTable;
+
+    // получаем из таблицы адресс функции Present
+    pPresent = (oPresent)(VTable[17]);
+    qDebug() << "pPresent" << (PDWORD)pPresent;
+    jmpbPR[0] = 0xE9;
+    DWORD addrES = (DWORD)HookedPresent - (DWORD)pPresent - 5;
+    memcpy(jmpbPR + 1, &addrES, sizeof(DWORD));
+    memcpy(CodeFragmentPR, (PBYTE)pPresent, 5);
+    VirtualProtect((PBYTE)pPresent, 8, PAGE_EXECUTE_READWRITE, &dwOldProtectES);
+    qDebug() << "pPresent" << (PBYTE)pPresent << jmpbPR << (PBYTE)HookedPresent << (PBYTE)addrES;
+    // заменяем вызов стандартной функции Present на вызов нашей функции
+    memcpy((PBYTE)pPresent, jmpbPR, 5);
+
+//    // получаем из таблицы адресс функции EndScene
+//    pEndScene = (oEndScene)(VTable[42]);
+//    qDebug() << "pEndScene" << (PDWORD)pEndScene;
+//    jmpbES[0] = 0xE9;
+//    DWORD addrES = (DWORD)HookedEndScene - (DWORD)pEndScene - 5;
+//    memcpy(jmpbES + 1, &addrES, sizeof(DWORD));
+//    memcpy(CodeFragmentES, (PBYTE)pEndScene, 5);
+//    VirtualProtect((PBYTE)pEndScene, 8, PAGE_EXECUTE_READWRITE, &dwOldProtectES);
+//    qDebug() << "pEndScene" << (PBYTE)pEndScene << jmpbES << (PBYTE)HookedEndScene << (PBYTE)addrES;
+//    // заменяем вызов стандартной функции EndScene на вызов нашей функции
+//    memcpy((PBYTE)pEndScene, jmpbES, 5);
 
     pReset = (oReset)(VTable[16]);
     qDebug() << "pReset" << (PDWORD)pReset;
@@ -332,4 +346,7 @@ void paint(LPDIRECT3DDEVICE9 pDevice)
 
 Q_DECL_EXPORT void Inject(void)
 {
+    LPDIRECT3D9 pD3D;
+    if ((pD3D = Direct3DCreate9(D3D_SDK_VERSION)) != NULL)
+        pD3D->Release();
 }
