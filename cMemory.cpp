@@ -1,5 +1,5 @@
 #include "cMemory.h"
-#include <QDebug>
+
 
 BOOL bCompare(const BYTE* pData, const BYTE* bMask, const char* szMask)
 {
@@ -7,7 +7,6 @@ BOOL bCompare(const BYTE* pData, const BYTE* bMask, const char* szMask)
 	for(;*szMask;++szMask,++pData,++bMask)
 		if(*szMask=='x' && *pData!=*bMask) 
 			return false;
-//    qDebug() <<
 	return (*szMask) == NULL;
 }
 DWORD FindPattern(DWORD dwAddress,DWORD dwLen,BYTE *bMask, const char *szMask)

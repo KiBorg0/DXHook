@@ -15,6 +15,7 @@ TEMPLATE = lib
 CONFIG += dll qt
 DEFINES += DXHook_LIBRARY
 PROJECT_PATH = "C:/OpenServer/domains/dowstats.loc/ssstats"
+#PROJECT_PATH = "C:/Program Files (x86)/Steam/steamapps/common/Dawn of War Soulstorm"
 DESTDIR      = $$PROJECT_PATH
 
 # The following define makes your compiler emit warnings if you use
@@ -48,6 +49,7 @@ LIBS += -ld3d9
 LIBS += -ld3dx9_35
 LIBS += -lgdi32
 LIBS += -ldxerr9
+LIBS += -lpsapi
 #win32:!win32-g++: PRE_TARGETDEPS += $$PWD/'../../Program Files (x86)/Microsoft DirectX SDK (June 2010)/Lib/x86/d3d9.lib'
 #else:win32-g++: PRE_TARGETDEPS += $$PWD/'../../Program Files (x86)/Microsoft DirectX SDK (June 2010)/Lib/x86/libd3d9.a'
 

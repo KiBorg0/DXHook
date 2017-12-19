@@ -69,7 +69,7 @@ void cRender::String(int x, int y, DWORD color, const char *text, int font,  DWO
     HRESULT hr = pDevice->TestCooperativeLevel();
     if (FAILED(hr))
     {
-        qDebug() << "HookedEndScene TestCooperativeLevel" << DXGetErrorString9A(hr);
+        qDebug() << "HookedEndScene TestCooperativeLevel" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
     }
     RECT rect;
     SetRect(&rect, x, y, x, y);
@@ -519,8 +519,8 @@ void cRender::OnResetDevice()
 {
    for(int i = 0; i < FontNr; i++)
        if(pFont[i]){
-           HRESULT hRet = pFont[i]->OnResetDevice();
-           qDebug() << "Render OnResetDevice()" << i << DXGetErrorString9A(hRet);
+           HRESULT hr = pFont[i]->OnResetDevice();
+//           qDebug() << "Render OnResetDevice()" << i << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
        }
 }
 bool cRender::Font()
@@ -534,8 +534,8 @@ void cRender::OnLostDevice()
 {
     for(int i = 0; i < FontNr; i++)
         if(pFont[i]){
-            HRESULT hRet = pFont[i]->OnLostDevice();
-            qDebug() << "Render OnLostDevice()" << i << DXGetErrorString9A(hRet);
+            HRESULT hr = pFont[i]->OnLostDevice();
+//            qDebug() << "Render OnLostDevice()" << i << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
         }
 }
 
@@ -544,7 +544,8 @@ void cRender::ReleaseFonts()
     for(int i = 0; i < FontNr; i++)
         if(pFont[i]){
             HRESULT hr = pFont[i]->Release();
-            qDebug() << "Render Release()"<< i <<  DXGetErrorString9A(hr);
+            pFont[i] = NULL;
+            qDebug() << "Render Release()"<< i <<  DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
         }
     FontNr = 0;
 }
@@ -972,11 +973,8 @@ void CDraw::OnResetDevice()
 {
     for(int i = 0; i < FontNr; i++)
         if(pFont[i]){
-//            qDebug() << "Draw font" << i << "OnResetDevice()";
-            HRESULT hRet = pFont[i]->OnResetDevice();
-            if(hRet != D3D_OK) {
-//                qDebug() << "Draw OnResetDevice()" << DXGetErrorString9A(hRet);
-            }
+            HRESULT hr = pFont[i]->OnResetDevice();
+//            qDebug() << "Draw OnResetDevice()" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
         }
 }
 
@@ -984,18 +982,18 @@ void CDraw::OnLostDevice()
 {
     for(int i = 0; i < FontNr; i++)
         if(pFont[i]){
-//            qDebug() << "Draw font" << i << "OnLostDevice()";
-            HRESULT hRet = pFont[i]->OnLostDevice();
-            if(hRet != D3D_OK) {
-//                qDebug() << "Draw OnLostDevice()" << DXGetErrorString9A(hRet);
-            }
+            HRESULT hr = pFont[i]->OnLostDevice();
+//            qDebug() << "Draw OnLostDevice()" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
         }
 }
 
 void CDraw::ReleaseFonts()
 {
     for(int i = 0; i < FontNr; i++)
-        if(pFont[i]) pFont[i]->Release();
+        if(pFont[i]){
+            pFont[i]->Release();
+            pFont[i] = NULL;
+        }
     FontNr = 0;
 }
 

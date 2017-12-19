@@ -25,19 +25,27 @@ using namespace std;
 #define BUFSIZE 4096
 void paint(LPDIRECT3DDEVICE9 pDevice);
 
+HRESULT (STDMETHODCALLTYPE *original_present) (IDirect3DDevice9*, const RECT*, const RECT*, HWND, const RGNDATA*);
+//HRESULT (STDMETHODCALLTYPE *original_reset) (IDirect3DDevice9*, D3DPRESENT_PARAMETERS*);
+
+HRESULT STDMETHODCALLTYPE present(IDirect3DDevice9* thisptr, const RECT* src, const RECT* dest, HWND wnd_override, const RGNDATA* dirty_region) {
+    paint(thisptr);
+    qDebug() << "hooked present";
+    return original_present(thisptr, src, dest, wnd_override, dirty_region);
+}
+
+//HRESULT STDMETHODCALLTYPE reset(IDirect3DDevice9* thisptr, D3DPRESENT_PARAMETERS* params) {
+//    return original_reset(thisptr, params);
+//}
+
 typedef HRESULT (WINAPI* oReset)( LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters );
-typedef HRESULT	(WINAPI* oEndScene)(LPDIRECT3DDEVICE9 pDevice);
 typedef HRESULT	(WINAPI* oPresent)(LPDIRECT3DDEVICE9 pDevice, const RECT *pSourceRect, const RECT *pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion);
-oEndScene pEndScene = NULL;
 oReset pReset = NULL;
 oPresent pPresent = NULL;
 DWORD height, width;
 BYTE CodeFragmentPR[5] = {0};
 BYTE jmpbPR[5] = {0xE9, 0x0, 0x0, 0x0, 0x0};
 DWORD dwOldProtectPR = 0;
-BYTE CodeFragmentES[5] = {0};
-BYTE jmpbES[5] = {0xE9, 0x0, 0x0, 0x0, 0x0};
-DWORD dwOldProtectES = 0;
 BYTE CodeFragmentRES[5] = {0};
 BYTE jmpbRES[5] = {0xE9, 0x0, 0x0, 0x0, 0x0};
 DWORD dwOldProtectRES = 0;
@@ -109,14 +117,12 @@ void initFonts(LPDIRECT3DDEVICE9 pDevice){
 // из за этого резет не выполняется
 HRESULT APIENTRY HookedReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters )
 {
-    if(oldDevice!=pDevice) initFonts(pDevice);
-
     HRESULT hr = pDevice->TestCooperativeLevel();
-    if (FAILED(hr)) qDebug() << DXGetErrorString9A(hr);
+    if (FAILED(hr)) qDebug() << "Reset TCL" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
 
     // Освобождает все ссылки к ресурсам видеопамяти и удаляет все блоки состояния.
     Render.OnLostDevice();
-
+    Draw.OnLostDevice();
     memcpy((void *)pReset, CodeFragmentRES, 5);
     hr = pDevice->Reset(pPresentationParameters);
     memcpy((void *)pReset, jmpbRES, 5);
@@ -126,9 +132,10 @@ HRESULT APIENTRY HookedReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* p
         // Этот метод необходимо вызывать после сброса устройства, и перед вызовом любых других методов,
         // если свойство IsUsingEventHandlers установлено на false.
         Render.OnResetDevice();
+        Draw.OnResetDevice();
     }
     else
-        qDebug() << "Reset return is" << DXGetErrorString9A(hr);
+        qDebug() << "Reset return is" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
 
 
     return hr;
@@ -136,85 +143,26 @@ HRESULT APIENTRY HookedReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* p
 
 HRESULT APIENTRY HookedPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pSourceRect, const RECT *pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion)
 {
-    HRESULT hRet = D3D_OK;
     HRESULT hr = pDevice->TestCooperativeLevel();
     if (FAILED(hr))
-        qDebug() << "HookedEndScene TestCooperativeLevel" << DXGetErrorString9A(hr);
+        qDebug() << "Present TCL" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
+
     paint(pDevice);
 
     memcpy((void *)pPresent, CodeFragmentPR, 5);
-    hRet = pDevice->Present(pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
+    hr = pDevice->Present(pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
     memcpy((void *)pPresent, jmpbPR, 5);
 
-    if(FAILED(hRet))
-        qDebug() << "HookedEndScene return is" << DXGetErrorString9A(hRet);
+    if(FAILED(hr))
+        qDebug() << "HookedPresent return is" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
 
-    return hRet;
-}
-
-HRESULT APIENTRY HookedEndScene(LPDIRECT3DDEVICE9 pDevice)
-{
-    HRESULT hRet = D3D_OK;
-    HRESULT hr = pDevice->TestCooperativeLevel();
-    if (FAILED(hr))
-        qDebug() << "HookedEndScene TestCooperativeLevel" << DXGetErrorString9A(hr);
-    paint(pDevice);
-
-    memcpy((void *)pEndScene, CodeFragmentES, 5);
-    hRet = pDevice->EndScene();
-    memcpy((void *)pEndScene, jmpbES, 5);
-
-    if(FAILED(hRet))
-        qDebug() << "HookedEndScene return is" << DXGetErrorString9A(hRet);
-
-    return hRet;
+    return hr;
 }
 
 void HookDevice9Methods(){
-
-    DWORD *VTable;
-    DWORD hD3D9 = 0;
-    while (!hD3D9) hD3D9 = (DWORD)GetModuleHandle(L"d3d9.dll");
-    // получаем адрес устройства
-    DWORD PPPDevice = FindPattern(hD3D9, 0x128000, (PBYTE)"\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx");
-    qDebug() << "PPPDevice" << (PDWORD)PPPDevice << (void *)(PPPDevice + 2);
-    // пропустив C706 копируем адресс таблицы функций в указатель на VTable
-    memcpy( &VTable, (void *)(PPPDevice + 2), 4);
-    qDebug() << "VTable" << VTable;
-
-    // получаем из таблицы адресс функции Present
-    pPresent = (oPresent)(VTable[17]);
-    qDebug() << "pPresent" << (PDWORD)pPresent;
-    jmpbPR[0] = 0xE9;
-    DWORD addrES = (DWORD)HookedPresent - (DWORD)pPresent - 5;
-    memcpy(jmpbPR + 1, &addrES, sizeof(DWORD));
-    memcpy(CodeFragmentPR, (PBYTE)pPresent, 5);
-    VirtualProtect((PBYTE)pPresent, 8, PAGE_EXECUTE_READWRITE, &dwOldProtectES);
-    qDebug() << "pPresent" << (PBYTE)pPresent << jmpbPR << (PBYTE)HookedPresent << (PBYTE)addrES;
-    // заменяем вызов стандартной функции Present на вызов нашей функции
-    memcpy((PBYTE)pPresent, jmpbPR, 5);
-
-//    // получаем из таблицы адресс функции EndScene
-//    pEndScene = (oEndScene)(VTable[42]);
-//    qDebug() << "pEndScene" << (PDWORD)pEndScene;
-//    jmpbES[0] = 0xE9;
-//    DWORD addrES = (DWORD)HookedEndScene - (DWORD)pEndScene - 5;
-//    memcpy(jmpbES + 1, &addrES, sizeof(DWORD));
-//    memcpy(CodeFragmentES, (PBYTE)pEndScene, 5);
-//    VirtualProtect((PBYTE)pEndScene, 8, PAGE_EXECUTE_READWRITE, &dwOldProtectES);
-//    qDebug() << "pEndScene" << (PBYTE)pEndScene << jmpbES << (PBYTE)HookedEndScene << (PBYTE)addrES;
-//    // заменяем вызов стандартной функции EndScene на вызов нашей функции
-//    memcpy((PBYTE)pEndScene, jmpbES, 5);
-
-    pReset = (oReset)(VTable[16]);
-    qDebug() << "pReset" << (PDWORD)pReset;
-    jmpbRES[0] = 0xE9;
-    DWORD addrRES = (DWORD)HookedReset - (DWORD)pReset - 5;
-    memcpy(jmpbRES + 1, &addrRES, sizeof(DWORD));
-    memcpy(CodeFragmentRES, (PBYTE)pReset, 5);
-    VirtualProtect((PBYTE)pReset, 8, PAGE_EXECUTE_READWRITE, &dwOldProtectRES);
-    qDebug() << "pReset" << (PBYTE)pReset << jmpbRES;
-    memcpy((PBYTE)pReset, jmpbRES, 5);
+    std::uintptr_t present_addr = FindPattern("gameoverlayrenderer.dll", "FF 15 ? ? ? ? 8B F8 85 DB 74 1F") + 2;
+    original_present = **reinterpret_cast<decltype(&original_present)*>(present_addr);
+    **reinterpret_cast<void***>(present_addr) = reinterpret_cast<void*>(&present);
 }
 
 DWORD WINAPI Hook(LPVOID Param)
@@ -289,8 +237,6 @@ BOOL WINAPI DllMain(HMODULE hDll, DWORD dwReason, LPVOID lpReserved)
     }
     if (dwReason==DLL_PROCESS_DETACH)
     {
-        Draw.ReleaseFonts();
-        Render.ReleaseFonts();
         qDebug() << "----------Detached----------";
         logger.finishLog();
         UnmapViewOfFile(lpSharedMemory);
