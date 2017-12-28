@@ -190,7 +190,9 @@ BOOL  cRender::State_Key(int Key, DWORD dwTimeOut)
 void cRender::Text(const char *text, float x, float y, int font, bool bordered, DWORD color, DWORD bcolor, int orientation)
 {
    RECT rect;
+   qDebug() << "Text" << font << pFont[font];
    if(!pFont[font]) return;
+
    switch(orientation)
    {
    case lefted:
@@ -221,7 +223,8 @@ void cRender::Text(const char *text, float x, float y, int font, bool bordered, 
          pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_CENTER|DT_NOCLIP, bcolor);
       }
       SetRect(&rect, x, y, x, y);
-      pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_CENTER|DT_NOCLIP, color);
+      qDebug() << pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_CENTER|DT_NOCLIP, color);
+      qDebug() << GetLastError();
       break;
    case righted:
       if(bordered)
@@ -255,44 +258,47 @@ void  cRender::Init_PosMenu(const char* Titl)
     h_menu = titleFontSize+menu_margin*2;
     w_menu = title_len+menu_margin*2+h_menu;
     int x = w_screen - w_menu-1;
-    int y = 0;
-    pos_Menu.x = x;
-    pos_Menu.y = y+h_menu+2;
-    pos_Menu._y = y+h_menu+2;
-    Button_Number=0;
 
-    Draw_Box(x,y,w_menu,h_menu,DARKGRAY(150));
-    Draw_Border(x,y,w_menu,h_menu,1,SKYBLUE(255));
-    Draw_Border(x+w_menu-h_menu,y,h_menu,h_menu,1,SKYBLUE(255));
+//    int y = 0;
+//    pos_Menu.x = x;
+//    pos_Menu.y = y+h_menu+2;
+//    pos_Menu._y = y+h_menu+2;
+//    Button_Number=0;
+
+//    Draw_Box(x,y,w_menu,h_menu,DARKGRAY(150));
+//    Draw_Border(x,y,w_menu,h_menu,1,SKYBLUE(255));
+//    Draw_Border(x+w_menu-h_menu,y,h_menu,h_menu,1,SKYBLUE(255));
 
     D3DCOLOR color = ORANGE(255);
-    if(IsInBox(x,y,w_menu,h_menu)){
-        if (State_Key(VK_LBUTTON,200) ){
-            if (!Button_Mass[Button_Number])
-                Button_Mass[Button_Number] = 1;
 
-            else
-                for ( int i = 0; i <= lpSharedMemory->playersNumber; i++ )
-                    Button_Mass[i] = 0;
-        }
-        color = C_BUT_text_In;
-    }
-    else if(!IsInBox(x,y,w_menu, pos_Menu.height_fon+20)){
-            if (State_Key(VK_LBUTTON,200) ){
-                for ( int i = 0; i <= lpSharedMemory->playersNumber; i++ )
-                    Button_Mass[i] = 0;
-            }
-        }
+//    if(IsInBox(x,y,w_menu,h_menu)){
+//        if (State_Key(VK_LBUTTON,200) ){
+//            if (!Button_Mass[Button_Number])
+//                Button_Mass[Button_Number] = 1;
+
+//            else
+//                for ( int i = 0; i <= lpSharedMemory->playersNumber; i++ )
+//                    Button_Mass[i] = 0;
+//        }
+//        color = C_BUT_text_In;
+//    }
+//    else if(!IsInBox(x,y,w_menu, pos_Menu.height_fon+20)){
+//            if (State_Key(VK_LBUTTON,200) ){
+//                for ( int i = 0; i <= lpSharedMemory->playersNumber; i++ )
+//                    Button_Mass[i] = 0;
+//            }
+//        }
 
     Text(Titl, x+(w_menu-h_menu)/2, menu_margin, 0, 0, color, BLACK, 1);
-    const char *arrow = Button_Mass[Button_Number]?"▼":"▲";
-    String(x+w_menu-h_menu/2, menu_margin, color, arrow, 0, C_Text);
 
-    if (Button_Mass[Button_Number])
-    {
-        Button_Number = 1;
-        SHOW_MENU();
-    }
+//    const char *arrow = Button_Mass[Button_Number]?"▼":"▲";
+//    String(x+w_menu-h_menu/2, menu_margin, color, arrow, 0, C_Text);
+
+//    if (Button_Mass[Button_Number])
+//    {
+//        Button_Number = 1;
+//        SHOW_MENU();
+//    }
 }
 
 void cRender::setGameInfo(PGameInfo gameInfo)
@@ -505,6 +511,7 @@ bool cRender::AddFont(const char* Caption, float size, bool bold, bool italic)
 {
     qDebug() << "Render AddFont" << Caption << size << FontNr;
     HRESULT hr = D3DXCreateFontA(pDevice, size, 0, (bold) ? FW_BOLD : FW_NORMAL, 1, (italic) ? 1 : 0 , DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, Caption, &pFont[FontNr]);
+    qDebug() << FontNr << pFont[FontNr];
     if(SUCCEEDED(hr))
     {
         ++FontNr;

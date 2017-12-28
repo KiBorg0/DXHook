@@ -41,6 +41,8 @@ typedef struct{
     bool showMenu;
     bool showRaces;
     bool showAPM;
+    DWORD statsThrId;
+    PCHAR sidsAddr[50];
 } TGameInfo;
 
 typedef TGameInfo *PGameInfo;

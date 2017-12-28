@@ -6,8 +6,9 @@
 
 QT       += core
 QT       -= gui
-
+CONFIG += c++11
 QMAKE_CXXFLAGS += -std=c++11
+#QMAKE_CXXFLAGS += -S main.cpp
 #CONFIG += console
 TARGET = dx_hook
 TEMPLATE = lib
@@ -32,7 +33,8 @@ HEADERS += Colors.h \
     cRender.h \
     Structure.h \
     cMemory.h \
-    logger.h
+    logger.h \
+    hooks.h
 #    ../SSStats/systemwin32.h
 SOURCES += main.cpp \
     cRender.cpp \
@@ -44,9 +46,12 @@ unix {
     INSTALLS += target
 }
 
-LIBS += -ld3d9
-#LIBS += -ld3dx9
-LIBS += -ld3dx9_35
+INCLUDEPATH += "C:\\Program Files (x86)\\Microsoft DirectX SDK (June 2010)\\Developer Runtime\\x86"
+
+#LIBS += -ld3d9
+#LIBS += -ld3dx9_35
+LIBS += -L"C:\\Program Files (x86)\\Microsoft DirectX SDK (June 2010)\\Developer Runtime\\x86" -ld3d9d
+LIBS += -L"C:\\Program Files (x86)\\Microsoft DirectX SDK (June 2010)\\Developer Runtime\\x86" -ld3dx9d_33
 LIBS += -lgdi32
 LIBS += -ldxerr9
 LIBS += -lpsapi

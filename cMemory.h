@@ -48,6 +48,7 @@ static uintptr_t FindPattern(const char* module, const char* target_pattern) {
     MODULEINFO module_info = { 0 };
     HMODULE hmodule = 0;
     while (!hmodule) hmodule = GetModuleHandleA(module);
+    qDebug() << hmodule;
     if (!GetModuleInformation(GetCurrentProcess(), hmodule, &module_info, sizeof(MODULEINFO)))
         return NULL;
 
