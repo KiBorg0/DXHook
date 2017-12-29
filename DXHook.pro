@@ -18,6 +18,9 @@ DEFINES += DXHook_LIBRARY
 PROJECT_PATH = "C:/OpenServer/domains/dowstats.loc/ssstats"
 #PROJECT_PATH = "C:/Program Files (x86)/Steam/steamapps/common/Dawn of War Soulstorm"
 DESTDIR      = $$PROJECT_PATH
+target.path = "C:/Program Files (x86)/Steam/steamapps/common/Dawn of War Soulstorm"
+target.files = $$DESTDIR/dx_hook.dll
+INSTALLS += target
 
 # The following define makes your compiler emit warnings if you use
 # any feature of Qt which as been marked as deprecated (the exact warnings

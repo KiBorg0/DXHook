@@ -3,7 +3,6 @@
 
 BOOL bCompare(const BYTE* pData, const BYTE* bMask, const char* szMask)
 {
-
 	for(;*szMask;++szMask,++pData,++bMask)
 		if(*szMask=='x' && *pData!=*bMask) 
 			return false;
