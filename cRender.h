@@ -23,6 +23,7 @@ typedef struct{
     int winsCount;
     int winRate;
     int mmr;
+    int mmr1v1;
     int apm;
 } TPlayer;
 
@@ -42,7 +43,9 @@ typedef struct{
     bool showRaces;
     bool showAPM;
     DWORD statsThrId;
-    PCHAR sidsAddr[50];
+    PVOID sidsAddr[10];
+    bool sidsAddrLock;
+//    QVector<PCHAR> sidsAddr;
 } TGameInfo;
 
 typedef TGameInfo *PGameInfo;

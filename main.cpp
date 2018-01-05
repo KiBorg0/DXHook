@@ -40,6 +40,7 @@ decltype(hooks::original_release) hooks::original_release = nullptr;
 
 
 LPD3DXFONT pFont = nullptr;
+LPD3DXSPRITE pSprite = nullptr;
 bool fontInited = false;
 
 HHOOK ExistingKeyboardProc;
@@ -125,7 +126,8 @@ BYTE CodeFragmentPR[5] = {0};
 BYTE jmpbPR[5] = {0xE9, 0x0, 0x0, 0x0, 0x0};
 DWORD dwOldProtectPR = 0;
 BYTE CodeFragmentRES[5] = {0};
-BYTE jmpbRES[5] = {0xE9, 0x0, 0x0, 0x0, 0x0};
+//E9 1B 07 59 FA
+BYTE jmpbRES[5] = {0xE9, 0x1B, 0x07, 0x59, 0xFA};
 DWORD dwOldProtectRES = 0;
 BYTE CodeFragmentES[5] = {0};
 BYTE jmpbES[5] = {0xE9, 0x0, 0x0, 0x0, 0x0};
@@ -143,6 +145,7 @@ bool closeWithGame = false;
 QString version_str = "0.0.0";
 
 bool deviceReseted = false;
+bool needAddHook = true;
 
 void initFonts(LPDIRECT3DDEVICE9 pDevice){
     qDebug() << "Device changed from" << oldDevice << "to" << pDevice;
@@ -204,46 +207,47 @@ HRESULT STDMETHODCALLTYPE hooks::user_release(LPDIRECT3DDEVICE9 pDevice) {
 
 HRESULT STDMETHODCALLTYPE hooks::user_present(LPDIRECT3DDEVICE9 pDevice, const RECT* pSourceRect, const RECT* pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion) {
 //    qDebug() << "PRESENT";
-    HRESULT hr = D3D_OK;
+//    HRESULT hr = D3D_OK;
 //    HRESULT hr = pDevice->TestCooperativeLevel();
 //    if (FAILED(hr))
 //        qDebug() << "Present TestCooperativeLevel" << DXGetErrorString9A(hr);
 
-    if(oldDevice!=pDevice){
-        qDebug() << "Device changed from" << oldDevice << "to" << pDevice;
-        oldDevice = pDevice;
-        if(pFont){
-            pFont->Release();
-            pFont = nullptr;
-        }
-    }
-    if(!pFont){
-        hr = D3DXCreateFont(pDevice, 30, 0, FW_NORMAL, 1, false,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE, L"Consolas", &pFont);
-        if (FAILED(hr))
-            qDebug() << "Could not create font." << DXGetErrorString9A(hr);
-    }
-    if(SUCCEEDED(hr)){
-        RECT rect = {0,0,0,0};
-        SetRect(&rect, 0, 0, 300, 100);
-        int height = pFont->DrawText(nullptr, L"Hello, World!", -1, &rect,
-            DT_LEFT | DT_NOCLIP, -1);
+//    if(oldDevice!=pDevice){
+//        qDebug() << "Device changed from" << oldDevice << "to" << pDevice;
+//        oldDevice = pDevice;
+//        if(pFont){
+//            pFont->Release();
+//            pFont = nullptr;
+//        }
+//    }
+//    if(!pFont){
+//        hr = D3DXCreateFont(pDevice, 30, 0, FW_NORMAL, 1, false,
+//        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
+//        DEFAULT_PITCH | FF_DONTCARE, L"Consolas", &pFont);
+//        if (FAILED(hr))
+//            qDebug() << "Could not create font." << DXGetErrorString9A(hr);
+//    }
+//    if(SUCCEEDED(hr)){
+//        RECT rect = {0,0,0,0};
+//        SetRect(&rect, 0, 0, 300, 100);
+//        int height = pFont->DrawText(nullptr, L"Hello, World!", -1, &rect,
+//            DT_LEFT | DT_NOCLIP, -1);
 //        if(!height)
 //            qDebug() << "Could not draw text.";
-    }
-
+//    }
+    paint(pDevice);
     return hooks::original_present(pDevice, pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
 }
 
 HRESULT STDMETHODCALLTYPE hooks::user_reset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters) {
     qDebug() << "RESET";
+    if(needAddHook)memcpy((void *)pReset, CodeFragmentRES, 5);
     HRESULT hr = pDevice->TestCooperativeLevel();
     if (FAILED(hr)) qDebug() << "Reset TCL" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
 
     // Освобождает все ссылки к ресурсам видеопамяти и удаляет все блоки состояния.
-//    Render.OnLostDevice();
-//    Draw.OnLostDevice();
+    Render.OnLostDevice();
+    Draw.OnLostDevice();
     if(pFont)pFont->OnLostDevice();
     hr = hooks::original_reset(pDevice, pPresentationParameters);
 
@@ -251,13 +255,13 @@ HRESULT STDMETHODCALLTYPE hooks::user_reset(LPDIRECT3DDEVICE9 pDevice, D3DPRESEN
         qDebug() << "Reset return is D3D_OK";
         // Этот метод необходимо вызывать после сброса устройства, и перед вызовом любых других методов,
         // если свойство IsUsingEventHandlers установлено на false.
-//        Render.OnResetDevice();
-//        Draw.OnResetDevice();
+        Render.OnResetDevice();
+        Draw.OnResetDevice();
         if(pFont)pFont->OnResetDevice();
     }
     else
         qDebug() << "Reset return is" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
-
+    if(needAddHook)memcpy((void *)pReset, jmpbRES, 5);
 
     return hr;
 }
@@ -269,7 +273,6 @@ HRESULT STDMETHODCALLTYPE hooks::user_reset(LPDIRECT3DDEVICE9 pDevice, D3DPRESEN
 // из за этого резет не выполняется
 HRESULT APIENTRY HookedReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters )
 {
-//    memcpy((void *)pEndScene, CodeFragmentES, 5);
     memcpy((void *)pReset, CodeFragmentRES, 5);
     qDebug() << "HookedReset";
     HRESULT hr = pDevice->TestCooperativeLevel();
@@ -278,13 +281,9 @@ HRESULT APIENTRY HookedReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* p
     // Освобождает все ссылки к ресурсам видеопамяти и удаляет все блоки состояния.
     Render.OnLostDevice();
     Draw.OnLostDevice();
-
-//    if(pFont)pFont->OnLostDevice();
+    if(pFont)pFont->OnLostDevice();
 
     hr = pDevice->Reset(pPresentationParameters);
-//    Reset TCL D3DERR_DEVICENOTRESET Device not reset
-//    Reset return is D3DERR_INVALIDCALL Invalid call
-//    deviceReseted = true;
 
     if(SUCCEEDED(hr)) {
         qDebug() << "Reset return is D3D_OK";
@@ -292,12 +291,13 @@ HRESULT APIENTRY HookedReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* p
         // если свойство IsUsingEventHandlers установлено на false.
         Render.OnResetDevice();
         Draw.OnResetDevice();
-//        if(pFont)pFont->OnResetDevice();
+        if(pFont)pFont->OnResetDevice();
     }
     else
         qDebug() << "Reset return is" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
 
     memcpy((void *)pReset, jmpbRES, 5);
+
     return hr;
 }
 HRESULT APIENTRY HookedRelease(LPDIRECT3DDEVICE9 pDevice){
@@ -305,10 +305,10 @@ HRESULT APIENTRY HookedRelease(LPDIRECT3DDEVICE9 pDevice){
     HRESULT hr = pDevice->TestCooperativeLevel();
     if (FAILED(hr)) qDebug() << "Release TCL" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
 
-    if(hr==D3DERR_DEVICENOTRESET&&pFont){
-        pFont->Release();
-        pFont = nullptr;
-    }
+//    if(hr==D3DERR_DEVICENOTRESET&&pFont){
+//        pFont->Release();
+//        pFont = nullptr;
+//    }
     memcpy((void *)pRelease, CodeFragmentREL, 5);
     hr = pDevice->Release();
     memcpy((void *)pRelease, jmpbREL, 5);
@@ -356,11 +356,23 @@ HRESULT APIENTRY HookedEndScene(LPDIRECT3DDEVICE9 pDevice)
 //        if (FAILED(hr))
 //            qDebug() << "Could not create font." << DXGetErrorString9A(hr);
 //    }
+//    if(!pSprite){
+//        hr = D3DXCreateSprite(pDevice, &pSprite);
+//        if (FAILED(hr))
+//            qDebug() << "Could not create sprite." << DXGetErrorString9A(hr);
+//    }
 //    if(SUCCEEDED(hr)){
 //        RECT rect = {0,0,0,0};
 //        SetRect(&rect, 0, 0, 300, 100);
-//        int height = pFont->DrawText(nullptr, L"Hello, World!", -1, &rect,
-//            DT_LEFT | DT_NOCLIP, -1);
+//        int height;
+//        if(pSprite){
+//            pSprite->Begin(D3DXSPRITE_DONOTMODIFY_RENDERSTATE);
+//            height = pFont->DrawText(pSprite, L"Hello, World!", -1, &rect,
+//                DT_LEFT | DT_NOCLIP, -1);
+//            pSprite->End();
+//        }else
+//            height = pFont->DrawText(nullptr, L"Hello, World!", -1, &rect,
+//                DT_LEFT | DT_NOCLIP, -1);
 //        if(!height)
 //            qDebug() << "Could not draw text.";
 //    }
@@ -375,7 +387,10 @@ HRESULT APIENTRY HookedEndScene(LPDIRECT3DDEVICE9 pDevice)
     return hr;
 }
 
-
+std::uintptr_t present_addr;
+std::uintptr_t reset_addr;
+PVOID orig_ptr=nullptr;
+bool hooked=false;
 void HookDevice9Methods(){
     DWORD *VTable;
     DWORD hD3D9 = 0;
@@ -383,10 +398,11 @@ void HookDevice9Methods(){
     DWORD PPPDevice = FindPattern(hD3D9, 0x128000, (PBYTE)"\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx");
     qDebug() << "PPPDevice" << (PVOID)PPPDevice;
     memcpy( &VTable, (void *)(PPPDevice + 2), 4);
-    qDebug() << "pEndScene" << (PDWORD)pEndScene;
-    qDebug() << "pPresent" << (PDWORD)(VTable[17]);
-    qDebug() << "pReset" << (PDWORD)(VTable[16]);
-    qDebug() << "pRelease" << (PDWORD)(VTable[2]);
+    qDebug() << "pEndScene" << (PDWORD)(VTable[42]);
+    qDebug() << "pPresent " << (PDWORD)(VTable[17]);
+    qDebug() << "pReset   " << (PDWORD)(VTable[16]);
+    qDebug() << "pRelease " << (PDWORD)(VTable[2]);
+    hooked = true;
 
 //    pRelease = (oRelease)(VTable[2]);
 //    DWORD addrREL = (DWORD)HookedRelease - (DWORD)pRelease - 5;
@@ -397,50 +413,69 @@ void HookDevice9Methods(){
 //    memcpy((PBYTE)pRelease, jmpbREL, 5);
 
     // Perform signature scans inside the 'gameoverlayrenderer.dll' library.
-//    std::uintptr_t present_addr = FindPattern("gameoverlayrenderer.dll", "FF 15 ? ? ? ? 8B F8 85 DB 74 1F") + 2;
-//    std::uintptr_t reset_addr = FindPattern("gameoverlayrenderer.dll", "FF 15 ? ? ? ? 8B F8 85 FF 78 18") + 2;
+    present_addr = FindPattern("gameoverlayrenderer.dll", "FF 15 ? ? ? ? 8B F8 85 DB 74 1F") + 2;
+    reset_addr = FindPattern("gameoverlayrenderer.dll", "FF 15 ? ? ? ? 8B F8 85 FF 78 18") + 2;
 //    std::uintptr_t release_addr = FindPattern("gameoverlayrenderer.dll", "FF 15 ? ? ? ? 8B F0 85 F6 75 15") + 2;
 //                                                                       "FF 15 ? ? ? ? 56 B9 24 0C 0F 10"
 //    qDebug() << (void*) present_addr << (void*)reset_addr;
-//    qDebug() << "functions addr"
-//             << (void*)((DWORD*)present_addr)[0]
-//             << (void*)((DWORD*)reset_addr)[0];
+
+    qDebug() << "functions addr.:"
+             << (void*)((DWORD*)present_addr)[0]
+             << (void*)((DWORD*)reset_addr)[0];
 //             << (void*)((DWORD*)release_addr)[0];
     // Store the original contents of the pointers for later usage.
-//    hooks::original_present = **reinterpret_cast<decltype(&hooks::original_present)*>(present_addr);
-//    hooks::original_reset = **reinterpret_cast<decltype(&hooks::original_reset)*>(reset_addr);
+    hooks::original_present = **reinterpret_cast<decltype(&hooks::original_present)*>(present_addr);
+    hooks::original_reset = **reinterpret_cast<decltype(&hooks::original_reset)*>(reset_addr);
 //    hooks::original_release = **reinterpret_cast<decltype(&hooks::original_release)*>(release_addr);
 //    hooks::original_present = (oPresent)(**reinterpret_cast<void***>(present_addr));
 //    hooks::original_reset =   (oReset)(**reinterpret_cast<void***>(reset_addr));
 //    hooks::original_release = reinterpret_cast<void*>(&hooks::user_release);
-//    qDebug() << "user functions"
-//             << reinterpret_cast<void*>(&hooks::user_present)
-//             << reinterpret_cast<void*>(&hooks::user_reset);
+    qDebug() << "user.func:      "
+             << reinterpret_cast<void*>(&hooks::user_present)
+             << reinterpret_cast<void*>(&hooks::user_reset);
 //             << reinterpret_cast<void*>(&hooks::user_release);
-//    qDebug() << "user original functions"
-//             << reinterpret_cast<void*>(&hooks::original_present)
-//             << reinterpret_cast<void*>(&hooks::original_reset);
+    qDebug() << "user.orig.func.:"
+             << reinterpret_cast<void*>(&hooks::original_present)
+             << reinterpret_cast<void*>(&hooks::original_reset);
 //             << reinterpret_cast<void*>(&hooks::original_release);
-//    qDebug() << "original functions"
-//             << (void*)(**reinterpret_cast<void***>(present_addr))
-//             << (void*)(**reinterpret_cast<void***>(reset_addr));
+    qDebug() << "orig.func.:     "
+             << (void*)(**reinterpret_cast<void***>(present_addr))
+             << (void*)(**reinterpret_cast<void***>(reset_addr));
 //             << (void*)(**reinterpret_cast<void***>(release_addr));
+    orig_ptr = (void*)(**reinterpret_cast<void***>(reset_addr));
+    qDebug() << (PDWORD)*((PDWORD)(orig_ptr+6))
+             << (PDWORD)(orig_ptr+5+(*((PDWORD)(orig_ptr+6))))
+             << orig_ptr;
+    DWORD ptrToRDM = (DWORD)orig_ptr+(*((PDWORD)(orig_ptr+6)));
+    DWORD offsetToRDMFromReset = ptrToRDM-VTable[16];
+    qDebug() << (PVOID)ptrToRDM << (PVOID)offsetToRDMFromReset;
     // Switch the contents to point to our replacement functions.
 //    **reinterpret_cast<void***>(present_addr) = reinterpret_cast<void*>(&hooks::user_present);
-//    **reinterpret_cast<void***>(reset_addr) = reinterpret_cast<void*>(&hooks::user_reset);
+    **reinterpret_cast<void***>(reset_addr) = reinterpret_cast<void*>(&hooks::user_reset);
 //    **reinterpret_cast<void***>(release_addr) = reinterpret_cast<void*>(&hooks::user_release);
-//    qDebug() << "original functions after hook"
-//             << (void*)(**reinterpret_cast<void***>(present_addr))
-//             << (void*)(**reinterpret_cast<void***>(reset_addr));
+    qDebug() << "orig.hook.func.:"
+             << (void*)(**reinterpret_cast<void***>(present_addr))
+             << (void*)(**reinterpret_cast<void***>(reset_addr));
 //             << (void*)(**reinterpret_cast<void***>(release_addr));
-
     pReset = (oReset)(VTable[16]);
-    DWORD addrRES = (DWORD)HookedReset - (DWORD)pReset - 5;
-    memcpy(jmpbRES + 1, &addrRES, sizeof(DWORD));
-    memcpy(CodeFragmentRES, (PBYTE)pReset, 5);
-    VirtualProtect((PBYTE)pReset, 8, PAGE_EXECUTE_READWRITE, &dwOldProtectRES);
-    qDebug() << "pReset Hook" << (PBYTE)HookedReset;
-    memcpy((PBYTE)pReset, jmpbRES, 5);
+    qDebug() << VTable[16] << (ptrToRDM+5);
+    if(VTable[16]!=(ptrToRDM+5)){
+        memcpy(jmpbRES + 1, &offsetToRDMFromReset, sizeof(DWORD));
+        memcpy(CodeFragmentRES, (PBYTE)pReset, 5);
+        VirtualProtect((PBYTE)pReset, 8, PAGE_EXECUTE_READWRITE, &dwOldProtectRES);
+        qDebug() << "pReset Hook" << (PBYTE)HookedReset;
+        memcpy((PBYTE)pReset, jmpbRES, 5);
+    }else{
+        qDebug() << "Reset is the same as RDM";
+        needAddHook = false;
+    }
+
+//    DWORD addrRES = (DWORD)HookedReset - (DWORD)pReset - 5;
+//    memcpy(jmpbRES + 1, &addrRES, sizeof(DWORD));
+//    memcpy(CodeFragmentRES, (PBYTE)pReset, 5);
+//    VirtualProtect((PBYTE)pReset, 8, PAGE_EXECUTE_READWRITE, &dwOldProtectRES);
+//    qDebug() << "pReset Hook" << (PBYTE)HookedReset;
+//    memcpy((PBYTE)pReset, jmpbRES, 5);
 
     pEndScene = (oEndScene)(VTable[42]);
     DWORD addrES = (DWORD)HookedEndScene - (DWORD)pEndScene - 5;
@@ -475,14 +510,24 @@ void APIENTRY InjectJump(DWORD _offset, DWORD target)
 }
 
 int currentAddr = 0;
-void APIENTRY GetSIDSAddr(PCHAR addr) //не забываем _stdcall, иначе компилятор может подкинуть нам свинью
+void APIENTRY GetSIDSAddr(PVOID addr) //не забываем _stdcall, иначе компилятор может подкинуть нам свинью
 {
-    if(currentAddr>=50) currentAddr = 0;
-    lpSharedMemory->sidsAddr[currentAddr] = addr;
-    ++currentAddr;
+    if(!lpSharedMemory->sidsAddrLock){
+        PVOID addr_0xC=addr+0xC;
+        if(currentAddr>=10) currentAddr = 0;
+        bool finded = false;
+        for(int i=0; i<10; ++i)
+            if(lpSharedMemory->sidsAddr[i]==addr_0xC)finded=true;
+        if(!finded){
+            lpSharedMemory->sidsAddr[currentAddr] = addr_0xC;
+            ++currentAddr;
+        }
+    }
 }
-
-LPVOID _injectedGetSIDSAddrRetAddr, _injectedGetMatchResultAddr; //Нужно указать при создании инжекта, чтобы функция знала, куда ей возвращаться
+//Нужно указать при создании инжекта, чтобы функция знала, куда ей возвращаться
+LPVOID _injectedGetSIDSAddrRetAddr,
+_injectedShutdownModAddr,
+_injectedInitializeModAddr;
 void APIENTRY _injectedGetSIDSAddr()
 {
     //Сохраняем регистры
@@ -495,38 +540,102 @@ void APIENTRY _injectedGetSIDSAddr()
     asm(
         "popl %ebp\n\t"
         "pushal\n\t"
-        "pushl %esi\n\t");
+        "pushl %eax\n\t");
     asm("call %P0\n\t" : : "i"(GetSIDSAddr));
     asm("popal\n\t"
-        "movl %eax,%ecx\n\t"
-        "decl %esi\n\t"
-        "subl %ebx,%ecx\n\t"
-        "pushl $0x00A35E0A\n\t"
+        "movl 0x1C(%eax),%ebp\n\t"
+        "decl %edx\n\t"
+        "pushl %esi\n\t"
+        "pushl $0x00A35DF7\n\t"
         "ret\n"
     );
 }
-void APIENTRY GetMatchResult(PCHAR addr)
+void APIENTRY InitializeMod()
 {
-    qDebug() << "GetMatchResult" << (PVOID)addr;
+    qDebug() << "InitializeMod";
+    if(!hooked) HookDevice9Methods();
 }
-void APIENTRY _injectedGetMatchResult()
+
+void APIENTRY _injectedInitialize()
 {
     asm(
         "popl %ebp\n\t"
-        "pushal\n\t"
-        "pushl %eax\n\t");
-    asm("call %P0\n\t" : : "i"(GetMatchResult));
+        "pushal\n\t");
+    asm("call %P0\n\t" : : "i"(InitializeMod));
     asm("popal\n\t"
-        "movl 0x68(%ebx),%edx\n\t"
-        "movl (%eax),%eax\n\t"
-        "pushl $0x004683DA\n\t"
+        "pushl $0x00AFFB74\n\t"
+        "pushl $0x0096F004\n\t"
         "ret\n"
     );
 }
 
+void APIENTRY ShutdownMod()
+{
+    if(hooked){
+        qDebug() << "ShutdownMod: unhooking";
+        // Убираем хук EndScene
+        memcpy((void *)pEndScene, CodeFragmentES, 5);
+        // Убираем хук Release
+//        memcpy((void *)pRelease, CodeFragmentREL, 5);
+        // Убираем хук Reset
+//        memcpy((void *)pReset, CodeFragmentRES, 5);
+        // Убираем хук steam Reset
+        **reinterpret_cast<void***>(reset_addr) = orig_ptr;
+        // Убираем хук который перенаправлял вызов оригинальной Reset
+        // на steam Reset
+        if(needAddHook)memcpy((void *)pReset, CodeFragmentRES, 5);
+        // Освобождаем память
+//        Render.ReleaseFonts();
+//        Draw.ReleaseFonts();
+        if(pFont){
+//            LPDIRECT3DDEVICE9 temp_pDevice;
+//            pFont->GetDevice(&temp_pDevice);
+//            HRESULT hr =  temp_pDevice->TestCooperativeLevel();
+//            if (FAILED(hr))
+//                qDebug() << "HookedEndScene TestCooperativeLevel" << DXGetErrorString9A(hr);
+//            pFont->OnLostDevice();
+            qDebug() << "Release Font";
+            pFont->Release();
+            pFont = nullptr;
+        }
+        hooked = false;
+        qDebug() << "ShutdownMod: success";
+    } else
+        qDebug() << "ShutdownMod: not hooked";
+
+}
+void APIENTRY _injectedShutdown()
+{
+    asm(
+        "popl %ebp\n\t"
+        "pushal\n\t");
+    asm("call %P0\n\t" : : "i"(ShutdownMod));
+    asm("popal\n\t"
+        "pushl %esi\n\t"
+        "movl %ecx,%esi\n\t"
+        "movl (%esi),%ecx\n\t"
+        "pushl $0x0096F075\n\t"
+        "ret\n"
+    );
+}
+//void APIENTRY _injectedGetMatchResult()
+//{
+//    asm(
+//        "popl %ebp\n\t"
+//        "pushal\n\t"
+//        "pushl %eax\n\t");
+//    asm("call %P0\n\t" : : "i"(GetMatchResult));
+//    asm("popal\n\t"
+//        "movl 0x68(%ebx),%edx\n\t"
+//        "movl (%eax),%eax\n\t"
+//        "pushl $0x004683DA\n\t"
+//        "ret\n"
+//    );
+//}
+
 DWORD WINAPI Hook(LPVOID Param)
 {
-    Sleep(10000);
+//    Sleep(1000);
     UNREFERENCED_PARAMETER(Param);
     bool enableDXHook = false, runWithGame = true;
     hSharedMemory = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(TGameInfo), L"DXHook-Shared-Memory");
@@ -547,14 +656,16 @@ DWORD WINAPI Hook(LPVOID Param)
     }else
         qDebug() << "CreateFileMapping: Error " << GetLastError();
 
-    if (enableDXHook)
-        HookDevice9Methods();
+//    if(enableDXHook)
+//        HookDevice9Methods();
 
-    _injectedGetSIDSAddrRetAddr = (LPVOID)(0x00A35E0A); //0x00A35E05 + 5 конец опкода, которые мы перезаписываем
-    InjectJump(0x00A35E05, (DWORD)&_injectedGetSIDSAddr);
-    _injectedGetMatchResultAddr = (LPVOID)(0x004683DA);
-    InjectJump(0x004683D5, (DWORD)&_injectedGetMatchResult);
+    _injectedGetSIDSAddrRetAddr = (LPVOID)(0x00A35DF7); //0x00A35E05 + 5 конец опкода, которые мы перезаписываем
+    InjectJump(0x00A35DF2, (DWORD)&_injectedGetSIDSAddr);
 
+    _injectedShutdownModAddr = (LPVOID)(0x0096F075);
+    InjectJump(0x0096F070, (DWORD)&_injectedShutdown);
+    _injectedInitializeModAddr = (LPVOID)(0x0096F004);
+    InjectJump(0x0096EFFF, (DWORD)&_injectedInitialize);
 
     if(!runWithGame) return 0;
 //    qDebug() << QProcess::startDetached("SSStatsUpdater.exe");

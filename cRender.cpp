@@ -367,7 +367,6 @@ void  cRender::Draw_Menu_But(stMenu *pos_Menu, const char* text)
     D3DCOLOR Bord_text = SKYBLUE(255);
     D3DCOLOR text_Activ = ORANGE(255);
 
-
 	if(IsInBox(x,y,w,h))
 	{	
         Bord_text = text_Activ = C_BUT_text_In;
@@ -382,29 +381,37 @@ void  cRender::Draw_Menu_But(stMenu *pos_Menu, const char* text)
 //    Draw_GradientBox(x, y, w, h, C_BUT_St, C_BUT_End,vertical);
     Draw_Box(x, y, w,h, DARKGRAY(150));
     Draw_Border(x, y, w, h,1,Bord_text);
+    // был выполнен клик по игроку в списке
     if (Button_Mass[Button_Number])
     {
         int x_sub = (*pos_Menu).x-w_sub_menu-2;
-        Draw_Box(x_sub, (*pos_Menu)._y, w_sub_menu,111, DARKGRAY(150));
-        Draw_Border(x_sub, (*pos_Menu)._y, w_sub_menu,111, 1, SKYBLUE(255));
-        String(x_sub+(w/2),(*pos_Menu)._y+3  ,C_BUT_text_In, string("Favorite Race ").data(), 1, R_Text);
-        String(x_sub+(w/2)+4,(*pos_Menu)._y+3  ,C_BUT_text_In, racesUC.at(lpSharedMemory->lobbyPlayers[Button_Number-1].race).toStdString().data(), 1, L_Text);
+        int size = 18, next_pos;
+        Draw_Box(x_sub, (*pos_Menu)._y, w_sub_menu,size*7+3, DARKGRAY(150));
+        Draw_Border(x_sub, (*pos_Menu)._y, w_sub_menu,size*7+3, 1, SKYBLUE(255));
+        next_pos = 3;
+        String(x_sub+(w/2),(*pos_Menu)._y+next_pos,C_BUT_text_In, string("Favorite Race ").data(), 1, R_Text);
+        String(x_sub+(w/2)+4,(*pos_Menu)._y+next_pos,C_BUT_text_In, racesUC.at(lpSharedMemory->lobbyPlayers[Button_Number-1].race).toStdString().data(), 1, L_Text);
+        next_pos += size;
+        String(x_sub+(w/2),(*pos_Menu)._y+next_pos,C_BUT_text_In, string("Games Played ").data(), 1, R_Text);
+        String(x_sub+(w/2)+4,(*pos_Menu)._y+next_pos,C_BUT_text_In, to_string(lpSharedMemory->lobbyPlayers[Button_Number-1].gamesCount).data(), 1, L_Text);
+        next_pos += size;
+        String(x_sub+(w/2),(*pos_Menu)._y+next_pos,C_BUT_text_In, string("Games Won ").data(), 1, R_Text);
+        String(x_sub+(w/2)+4,(*pos_Menu)._y+next_pos,C_BUT_text_In, to_string(lpSharedMemory->lobbyPlayers[Button_Number-1].winsCount).data(), 1, L_Text);
+        next_pos += size;
+        String(x_sub+(w/2),(*pos_Menu)._y+next_pos,C_BUT_text_In, string("(%)Win Ratio ").data(), 1, R_Text);
+        String(x_sub+(w/2)+4,(*pos_Menu)._y+next_pos,C_BUT_text_In, to_string(lpSharedMemory->lobbyPlayers[Button_Number-1].winRate).data(), 1, L_Text);
+        next_pos += size;
+        String(x_sub+(w/2),(*pos_Menu)._y+next_pos,C_BUT_text_In, string("APM ").data(), 1, R_Text);
+        String(x_sub+(w/2)+4,(*pos_Menu)._y+next_pos,C_BUT_text_In, to_string(lpSharedMemory->lobbyPlayers[Button_Number-1].apm).data(), 1, L_Text);
+        next_pos += size;
+        String(x_sub+(w/2),(*pos_Menu)._y+next_pos,C_BUT_text_In, string("MMR ").data(), 1, R_Text);
+        String(x_sub+(w/2)+4,(*pos_Menu)._y+next_pos,C_BUT_text_In, to_string(lpSharedMemory->lobbyPlayers[Button_Number-1].mmr).data(), 1, L_Text);
+        next_pos += size;
+        String(x_sub+(w/2),(*pos_Menu)._y+next_pos,C_BUT_text_In, string("MMR 1VS1 ").data(), 1, R_Text);
+        String(x_sub+(w/2)+4,(*pos_Menu)._y+next_pos,C_BUT_text_In, to_string(lpSharedMemory->lobbyPlayers[Button_Number-1].mmr1v1).data(), 1, L_Text);
 
-        String(x_sub+(w/2),(*pos_Menu)._y+21 ,C_BUT_text_In, string("Games Played ").data(), 1, R_Text);
-        String(x_sub+(w/2)+4,(*pos_Menu)._y+21 ,C_BUT_text_In, to_string(lpSharedMemory->lobbyPlayers[Button_Number-1].gamesCount).data(), 1, L_Text);
-
-        String(x_sub+(w/2),(*pos_Menu)._y+39 ,C_BUT_text_In, string("Games Won ").data(), 1, R_Text);
-        String(x_sub+(w/2)+4,(*pos_Menu)._y+39 ,C_BUT_text_In, to_string(lpSharedMemory->lobbyPlayers[Button_Number-1].winsCount).data(), 1, L_Text);
-
-        String(x_sub+(w/2),(*pos_Menu)._y+57 ,C_BUT_text_In, string("(%)Win Ratio ").data(), 1, R_Text);
-        String(x_sub+(w/2)+4,(*pos_Menu)._y+57 ,C_BUT_text_In, to_string(lpSharedMemory->lobbyPlayers[Button_Number-1].winRate).data(), 1, L_Text);
-
-        String(x_sub+(w/2),(*pos_Menu)._y+75,C_BUT_text_In, string("APM ").data(), 1, R_Text);
-        String(x_sub+(w/2)+4,(*pos_Menu)._y+75,C_BUT_text_In, to_string(lpSharedMemory->lobbyPlayers[Button_Number-1].apm).data(), 1, L_Text);
-
-        String(x_sub+(w/2),(*pos_Menu)._y+93,C_BUT_text_In, string("MMR ").data(), 1, R_Text);
-        String(x_sub+(w/2)+4,(*pos_Menu)._y+93,C_BUT_text_In, to_string(lpSharedMemory->lobbyPlayers[Button_Number-1].mmr).data(), 1, L_Text);
-
+        // если эта кнопка нажата, то изменим цвет текста на ней на цвет текста активной кнопки
+        // и укажем что все остальные кнопки не нажаты
         text_Activ = C_BUT_text_On;
         for ( int i = 1; i <= lpSharedMemory->playersNumber; i++ )
             if ( i != Button_Number )
@@ -508,7 +515,7 @@ bool cRender::AddFont(const char* Caption, float size, bool bold, bool italic)
 {
     qDebug() << "Render AddFont" << Caption << size << FontNr;
     HRESULT hr = D3DXCreateFontA(pDevice, size, 0, (bold) ? FW_BOLD : FW_NORMAL, 1, (italic) ? 1 : 0 , DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, Caption, &pFont[FontNr]);
-    qDebug() << FontNr << pFont[FontNr];
+
     if(SUCCEEDED(hr))
     {
         ++FontNr;
@@ -548,8 +555,9 @@ void cRender::ReleaseFonts()
     for(int i = 0; i < FontNr; i++)
         if(pFont[i]){
             HRESULT hr = pFont[i]->Release();
-            pFont[i] = NULL;
-            qDebug() << "Render Release()"<< i <<  DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
+            pFont[i] = nullptr;
+            if(FAILED(hr))
+                qDebug() << "Render ReleaseFonts()"<< i <<  DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
         }
     FontNr = 0;
 }
@@ -996,7 +1004,7 @@ void CDraw::ReleaseFonts()
     for(int i = 0; i < FontNr; i++)
         if(pFont[i]){
             pFont[i]->Release();
-            pFont[i] = NULL;
+            pFont[i] = nullptr;
         }
     FontNr = 0;
 }
