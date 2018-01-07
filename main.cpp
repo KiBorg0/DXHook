@@ -527,7 +527,8 @@ void APIENTRY GetSIDSAddr(PVOID addr) //не забываем _stdcall, инач
 //Нужно указать при создании инжекта, чтобы функция знала, куда ей возвращаться
 LPVOID _injectedGetSIDSAddrRetAddr,
 _injectedShutdownModAddr,
-_injectedInitializeModAddr;
+_injectedInitializeModAddr,
+_injectedTerrainValuesAddr;
 void APIENTRY _injectedGetSIDSAddr()
 {
     //Сохраняем регистры
@@ -618,6 +619,29 @@ void APIENTRY _injectedShutdown()
         "ret\n"
     );
 }
+BYTE nop_array[6] = {0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
+BYTE float_far[4] = {0x00, 0x00, 0x00, 0x44};
+void APIENTRY ChangeTerrainVisibility(PVOID addr){
+//    memcpy(addr, float_far, 4);
+    qDebug() << addr;
+}
+typedef int func(void);
+func *myfunc = (func *)0x007E7160;
+void APIENTRY _injectedTerrainValues()
+{
+    asm(
+        "popl %ebp\n\t"
+        "pushal\n\t"
+        "pushl -0x4(%ebx)");
+    asm("call %P0\n\t" : : "i"(ChangeTerrainVisibility));
+    asm("popal\n\t"
+        "movl $0x007E7160,%ebx\n\t"
+        "call *%ebx\n\t"
+        "pushl $0x0082A38F\n\t"
+        "ret\n"
+    );
+}
+
 //void APIENTRY _injectedGetMatchResult()
 //{
 //    asm(
@@ -666,6 +690,17 @@ DWORD WINAPI Hook(LPVOID Param)
     InjectJump(0x0096F070, (DWORD)&_injectedShutdown);
     _injectedInitializeModAddr = (LPVOID)(0x0096F004);
     InjectJump(0x0096EFFF, (DWORD)&_injectedInitialize);
+
+
+    unsigned long Protection;
+    VirtualProtect((PVOID)0x00AF54C8, 4, PAGE_EXECUTE_READWRITE, &Protection);
+    memcpy((PVOID)0x00AF54C8, float_far, 4);
+    VirtualProtect((PVOID)0x00AF54C8, 4, Protection, 0);
+    VirtualProtect((PVOID)0x0082A33A, 6, PAGE_EXECUTE_READWRITE, &Protection);
+    memcpy((PVOID)0x0082A33A, nop_array, 6);
+    VirtualProtect((PVOID)0x0082A33A, 6, Protection, 0);
+//    _injectedTerrainValuesAddr = (PVOID)0x0082A38F;
+//    InjectJump(0x0082A38A, (DWORD)&_injectedTerrainValues);
 
     if(!runWithGame) return 0;
 //    qDebug() << QProcess::startDetached("SSStatsUpdater.exe");
