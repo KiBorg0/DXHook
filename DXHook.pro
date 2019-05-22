@@ -10,18 +10,19 @@ CONFIG += c++11
 QMAKE_CXXFLAGS += -std=c++11
 #QMAKE_CXXFLAGS += -S main.cpp
 #CONFIG += console
-TARGET = dx_hook
+TARGET = SSStatsDXHook
 TEMPLATE = lib
 #TEMPLATE = app
 CONFIG += dll qt
 DEFINES += DXHook_LIBRARY
-PROJECT_PATH = "C:/OpenServer/domains/dowstats.loc/ssstats"
-#PROJECT_PATH = "C:/Program Files (x86)/Steam/steamapps/common/Dawn of War Soulstorm"
+PROJECT_PATH = "D:/OSPanel/domains/dowstats.loc"
 DESTDIR      = $$PROJECT_PATH
-target.path = "C:/Program Files (x86)/Steam/steamapps/common/Dawn of War Soulstorm"
-target.files = $$DESTDIR/dx_hook.dll
+target.path = $$quote($$(PROGRAMFILES)/Steam/steamapps/common/Dawn of War Soulstorm)
+target.files = $$DESTDIR/SSStatsDXHook.dll
 INSTALLS += target
-
+INCLUDEPATH += "E:/SSStats/SSStats"
+RC_FILE = ssstats.rc
+INCLUDEPATH += E:/boost/include/boost-1_63
 # The following define makes your compiler emit warnings if you use
 # any feature of Qt which as been marked as deprecated (the exact warnings
 # depend on your compiler). Please consult the documentation of the
@@ -34,27 +35,33 @@ DEFINES += QT_DEPRECATED_WARNINGS
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 HEADERS += Colors.h \
     cRender.h \
-    Structure.h \
+#    Structure.h \
     cMemory.h \
     logger.h \
-    hooks.h
+    hooks.h \
+    version.h \
+    SetWindowsHookEx-Keylogger.h \
+    apmkeyhook.h \
+    apmkeyhook_global.h \
+    targetver.h
 #    ../SSStats/systemwin32.h
 SOURCES += main.cpp \
     cRender.cpp \
     cMemory.cpp \
     logger.cpp
+#    apmkeyhook.cpp
 #    ../SSStats/systemwin32.cpp
 unix {
     target.path = /usr/lib
     INSTALLS += target
 }
+INCLUDEPATH += "C:\\Program Files\\Microsoft DirectX SDK (June 2010)\\Developer Runtime\\x86"
+INCLUDEPATH += "C:\\Program Files\\Microsoft DirectX SDK (June 2010)\\Include"
 
-INCLUDEPATH += "C:\\Program Files (x86)\\Microsoft DirectX SDK (June 2010)\\Developer Runtime\\x86"
-
-#LIBS += -ld3d9
-#LIBS += -ld3dx9_35
-LIBS += -L"C:\\Program Files (x86)\\Microsoft DirectX SDK (June 2010)\\Developer Runtime\\x86" -ld3d9d
-LIBS += -L"C:\\Program Files (x86)\\Microsoft DirectX SDK (June 2010)\\Developer Runtime\\x86" -ld3dx9d_33
+LIBS += -ld3d9
+LIBS += -L"C:\\Program Files\\Microsoft DirectX SDK (June 2010)\\Developer Runtime\\x86" -ld3dx9_35
+#LIBS += -L"F:\\Program Files (x86)\\Microsoft DirectX SDK (June 2010)\\Developer Runtime\\x86" -ld3d9d
+#LIBS += -L"F:\\Program Files (x86)\\Microsoft DirectX SDK (June 2010)\\Developer Runtime\\x86" -ld3dx9d_33
 LIBS += -lgdi32
 LIBS += -ldxerr9
 LIBS += -lpsapi

@@ -45,6 +45,7 @@ typedef struct{
     DWORD statsThrId;
     PVOID sidsAddr[10];
     bool sidsAddrLock;
+    long total_actions;
 //    QVector<PCHAR> sidsAddr;
 } TGameInfo;
 
@@ -140,6 +141,8 @@ public:
       g_pVB = NULL;
       g_pIB = NULL;
       FontNr = 0;
+      for(int i = 0; i < MAX_FONTS; i++)
+          pFont[i] = nullptr;
    }
 
    struct sScreen

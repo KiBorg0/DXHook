@@ -1,0 +1,12 @@
+#ifndef APMKEYHOOK_GLOBAL_H
+#define APMKEYHOOK_GLOBAL_H
+
+#include <QtCore/qglobal.h>
+
+#if defined(APMKEYHOOK_LIBRARY)
+#  define APMKEYHOOKSHARED_EXPORT Q_DECL_EXPORT
+#else
+#  define APMKEYHOOKSHARED_EXPORT Q_DECL_IMPORT
+#endif
+
+#endif // APMKEYHOOK_GLOBAL_H

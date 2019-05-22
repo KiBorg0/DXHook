@@ -3,6 +3,7 @@
 #include <string>
 #include <QStringList>
 #include <QDebug>
+
 using namespace std;
 
 int Button_Mass[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -26,6 +27,8 @@ cRender::cRender(void)
 	w_sub_menu = 200;
     g_pVB = nullptr;
     FontNr = 0;
+    for(int i = 0; i < MAX_FONTS; i++)
+        pFont[i] = nullptr;
 }
 
 //void cRender::setFont(const char *font, int size)
@@ -65,7 +68,7 @@ cRender::cRender(void)
 
 void cRender::String(int x, int y, DWORD color, const char *text, int font,  DWORD style)
 {
-    if(!pFont[font]) return;
+    if(pFont[font]==nullptr) return;
     HRESULT hr = pDevice->TestCooperativeLevel();
     if (FAILED(hr))
     {
@@ -133,6 +136,7 @@ BOOL  cRender::IsInBox(int x,int y,int w,int h)
 }
 int cRender::GetTextLen(LPCTSTR szString, int font)
 {
+    if(pFont[font]==nullptr) return 0;
 	RECT rect = {0,0,0,0};
     pFont[font]->DrawText(NULL, szString, -1, &rect, DT_CALCRECT, 0);
 	return rect.right;
@@ -140,6 +144,7 @@ int cRender::GetTextLen(LPCTSTR szString, int font)
 
 int cRender::GetTextLen(const char *szString, int font)
 {
+    if(pFont[font]==nullptr) return 0;
     RECT rect = {0,0,0,0};
     pFont[font]->DrawTextA(NULL, szString, -1, &rect, DT_CALCRECT, 0);
     return rect.right;
@@ -190,7 +195,7 @@ BOOL  cRender::State_Key(int Key, DWORD dwTimeOut)
 void cRender::Text(const char *text, float x, float y, int font, bool bordered, DWORD color, DWORD bcolor, int orientation)
 {
    RECT rect;
-   if(!pFont[font]) return;
+   if(pFont[font]==nullptr) return;
    switch(orientation)
    {
    case lefted:
@@ -289,7 +294,7 @@ void  cRender::Init_PosMenu(const char* Titl)
     Text(Titl, x+(w_menu-h_menu)/2, menu_margin, 0, 0, color, BLACK, 1);
 
     const char *arrow = Button_Mass[Button_Number]?"▼":"▲";
-    String(x+w_menu-h_menu/2, menu_margin, color, arrow, 0, C_Text);
+    String(x+w_menu-h_menu/2+2, menu_margin, color, arrow, 0, C_Text);
 
     if (Button_Mass[Button_Number])
     {
@@ -529,7 +534,7 @@ bool cRender::AddFont(const char* Caption, float size, bool bold, bool italic)
 void cRender::OnResetDevice()
 {
    for(int i = 0; i < FontNr; i++)
-       if(pFont[i]){
+       if(pFont[i]!=nullptr){
            HRESULT hr = pFont[i]->OnResetDevice();
 //           qDebug() << "Render OnResetDevice()" << i << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
        }
@@ -537,14 +542,14 @@ void cRender::OnResetDevice()
 bool cRender::Font()
 {
    for(int i=0; i<FontNr; i++)
-      if(!pFont[i]) return false;
+      if(pFont[i]==nullptr) return false;
    return true;
 }
 
 void cRender::OnLostDevice()
 {
     for(int i = 0; i < FontNr; i++)
-        if(pFont[i]){
+        if(pFont[i]!=nullptr){
             HRESULT hr = pFont[i]->OnLostDevice();
 //            qDebug() << "Render OnLostDevice()" << i << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
         }
@@ -553,11 +558,13 @@ void cRender::OnLostDevice()
 void cRender::ReleaseFonts()
 {
     for(int i = 0; i < FontNr; i++)
-        if(pFont[i]){
+        if(pFont[i]!=nullptr){
             HRESULT hr = pFont[i]->Release();
+
+//            if(FAILED(hr))
+                qDebug() << "Render ReleaseFonts()"<< i <<  DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr) << (PVOID)pFont[i];
             pFont[i] = nullptr;
-            if(FAILED(hr))
-                qDebug() << "Render ReleaseFonts()"<< i <<  DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
+
         }
     FontNr = 0;
 }
@@ -839,7 +846,7 @@ void CDraw::BoxRounded(float x, float y, float w, float h, float radius, bool sm
 void CDraw::Text(const char *text, float x, float y, int font, bool bordered, DWORD color, DWORD bcolor, int orientation)
 {
    RECT rect;
-   if(!pFont[font]) return;
+   if(pFont[font]==nullptr) return;
    switch(orientation)
    {
    case lefted:
@@ -892,35 +899,30 @@ void CDraw::Text(const char *text, float x, float y, int font, bool bordered, DW
 
 void CDraw::Message(const char *text, LONG x, LONG y, int font, int orientation)
 {
-   RECT rect = {x, y, x, y};
+    if(pFont[font]==nullptr) return;
+    RECT rect = {x, y, x, y};
 
-   switch(orientation)
-   {
-   case lefted:
-      pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_CALCRECT|DT_LEFT, BLACK(255));
-
-      BoxRounded(x - 5, rect.top - 5, rect.right - x + 10, rect.bottom - rect.top + 10, 5, true, DARKGRAY(150), SKYBLUE(255));
-
-      SetRect(&rect, x, y, x, y);
-      pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_LEFT|DT_NOCLIP, ORANGE(255));
-      break;
-   case centered:
-      pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_CALCRECT|DT_CENTER, BLACK(255));
-
-      BoxRounded(rect.left - 5 , rect.top - 5, rect.right - rect.left + 10, rect.bottom - rect.top + 10, 5, true, DARKGRAY(150), SKYBLUE(255));
-
-      SetRect(&rect, x, y, x, y);
-      pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_CENTER|DT_NOCLIP, ORANGE(255));
-      break;
-   case righted:
-      pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_CALCRECT|DT_RIGHT, BLACK(255));
-
-      BoxRounded(rect.left - 5, rect.top - 5, rect.right - rect.left + 10, rect.bottom - rect.top + 10, 5, true, DARKGRAY(150), SKYBLUE(255));
-
-      SetRect(&rect, x, y, x, y);
-      pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_RIGHT|DT_NOCLIP, ORANGE(255));
-      break;
-   }
+    switch(orientation)
+    {
+        case lefted:
+            pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_CALCRECT|DT_LEFT, BLACK(255));
+            BoxRounded(x - 5, rect.top - 5, rect.right - x + 10, rect.bottom - rect.top + 10, 5, true, DARKGRAY(150), SKYBLUE(255));
+            SetRect(&rect, x, y, x, y);
+            pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_LEFT|DT_NOCLIP, ORANGE(255));
+            break;
+        case centered:
+            pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_CALCRECT|DT_CENTER, BLACK(255));
+            BoxRounded(rect.left - 5 , rect.top - 5, rect.right - rect.left + 10, rect.bottom - rect.top + 10, 5, true, DARKGRAY(150), SKYBLUE(255));
+            SetRect(&rect, x, y, x, y);
+            pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_CENTER|DT_NOCLIP, ORANGE(255));
+            break;
+        case righted:
+            pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_CALCRECT|DT_RIGHT, BLACK(255));
+            BoxRounded(rect.left - 5, rect.top - 5, rect.right - rect.left + 10, rect.bottom - rect.top + 10, 5, true, DARKGRAY(150), SKYBLUE(255));
+            SetRect(&rect, x, y, x, y);
+            pFont[font]->DrawTextA(NULL,text,-1,&rect, DT_RIGHT|DT_NOCLIP, ORANGE(255));
+            break;
+    }
 }
 
 void CDraw::Sprite(LPDIRECT3DTEXTURE9 tex, float x, float y, float resolution, float scale, float rotation)
@@ -960,7 +962,7 @@ void CDraw::Sprite(LPDIRECT3DTEXTURE9 tex, float x, float y, float resolution, f
 bool CDraw::Font()
 {
    for(int i=0; i<FontNr; i++)
-      if(!pFont[i]) return false;
+      if(pFont[i]==nullptr) return false;
    return true;
 }
 
@@ -984,26 +986,29 @@ HRESULT CDraw::AddFont(const char* Caption, float size, bool bold, bool italic)
 void CDraw::OnResetDevice()
 {
     for(int i = 0; i < FontNr; i++)
-        if(pFont[i]){
+        if(pFont[i]!=nullptr){
             HRESULT hr = pFont[i]->OnResetDevice();
-//            qDebug() << "Draw OnResetDevice()" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
+            qDebug() << "Draw OnResetDevice()" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
         }
 }
 
 void CDraw::OnLostDevice()
 {
     for(int i = 0; i < FontNr; i++)
-        if(pFont[i]){
+        if(pFont[i]!=nullptr){
             HRESULT hr = pFont[i]->OnLostDevice();
-//            qDebug() << "Draw OnLostDevice()" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
+            qDebug() << "Draw OnLostDevice()" << DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr);
         }
 }
 
 void CDraw::ReleaseFonts()
 {
     for(int i = 0; i < FontNr; i++)
-        if(pFont[i]){
-            pFont[i]->Release();
+        if(pFont[i]!=nullptr){
+            HRESULT hr = pFont[i]->Release();
+
+//            if(FAILED(hr))
+                qDebug() << "Render ReleaseFonts()"<< i <<  DXGetErrorString9A(hr) << DXGetErrorDescription9A(hr) << (PVOID)pFont[i];;
             pFont[i] = nullptr;
         }
     FontNr = 0;
@@ -1042,6 +1047,7 @@ void  CDraw::Draw_Border(int x, int y, int w, int h,int s, D3DCOLOR Color)
 
 int CDraw::GetTextLen(LPCTSTR szString, int font)
 {
+    if(pFont[font]==nullptr) return 0;
     RECT rect = {0,0,0,0};
     pFont[font]->DrawText(NULL, szString, -1, &rect, DT_CALCRECT, 0);
     return rect.right;
@@ -1049,6 +1055,7 @@ int CDraw::GetTextLen(LPCTSTR szString, int font)
 
 int CDraw::GetTextLen(const char *szString, int font)
 {
+    if(pFont[font]==nullptr) return 0;
     RECT rect = {0,0,0,0};
 //    pFont[font]->DrawTextA(NULL, szString, -1, &rect, DT_CALCRECT, 0);
     // определим размер памяти, необходимый для хранения Unicode-строки
@@ -1063,6 +1070,7 @@ int CDraw::GetTextLen(const char *szString, int font)
 
 void CDraw::String(int x, int y, DWORD color, const char *text, int font,  DWORD style)
 {
+    if(pFont[font]==nullptr) return;
     RECT rect;
     SetRect(&rect, x, y, x, y);
     // определим размер памяти, необходимый для хранения Unicode-строки
@@ -1076,6 +1084,7 @@ void CDraw::String(int x, int y, DWORD color, const char *text, int font,  DWORD
 
 void CDraw::StringChar(int x, int y, DWORD color, const char *text, int font,  DWORD style)
 {
+    if(pFont[font]==nullptr) return;
     RECT rect;
     SetRect(&rect, x, y, x, y);
     pFont[font]->DrawTextA(NULL, text, -1, &rect, style, color);
@@ -1084,6 +1093,7 @@ void CDraw::StringChar(int x, int y, DWORD color, const char *text, int font,  D
 
 void CDraw::String(int x, int y, DWORD color, LPCTSTR text, int font,  DWORD Style)
 {
+    if(pFont[font]==nullptr) return;
     RECT rect;
     SetRect(&rect, x, y, x, y);
     pFont[font]->DrawText(NULL, text, -1, &rect, Style, color);
