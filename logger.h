@@ -1,7 +1,7 @@
 #ifndef LOGGER_H
 #define LOGGER_H
 
-#include "../SSStats/version.h"
+#include "version.h"
 #include <QTextCodec>
 #include <QDateTime>
 #include <windows.h>

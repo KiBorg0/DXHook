@@ -2,11 +2,11 @@
 #define VERSION_H
 
 //#define VERSIONINFO ""
-#define VER_FILEVERSION             1,5
-#define VER_FILEVERSION_STR         "1.5\0"
+#define VER_FILEVERSION             1,0,8
+#define VER_FILEVERSION_STR         "1.0.8\0"
 
-#define VER_PRODUCTVERSION          2,0
-#define VER_PRODUCTVERSION_STR      "2.0\0"
+#define VER_PRODUCTVERSION          1,0,8
+#define VER_PRODUCTVERSION_STR      "1.0.8\0"
 
 #define VER_COMPANYNAME_STR         "Soulstorm Ladder Company"
 #define VER_FILEDESCRIPTION_STR     "Soulstorm Ladder"

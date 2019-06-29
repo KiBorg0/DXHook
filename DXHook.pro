@@ -8,14 +8,15 @@ QT       += core
 QT       -= gui
 CONFIG += c++11
 QMAKE_CXXFLAGS += -std=c++11
+QMAKE_LFLAGS += -static
 #QMAKE_CXXFLAGS += -S main.cpp
 #CONFIG += console
-TARGET = SSStatsDXHook
+TARGET = dx_hook
 TEMPLATE = lib
 #TEMPLATE = app
 CONFIG += dll qt
 DEFINES += DXHook_LIBRARY
-PROJECT_PATH = "D:/OSPanel/domains/dowstats.loc"
+PROJECT_PATH = "E:/SSStats/release"
 DESTDIR      = $$PROJECT_PATH
 target.path = $$quote($$(PROGRAMFILES)/Steam/steamapps/common/Dawn of War Soulstorm)
 target.files = $$DESTDIR/SSStatsDXHook.dll
