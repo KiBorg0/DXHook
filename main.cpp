@@ -30,7 +30,6 @@ HHOOK mouseHook;
 
 Logger logger;
 cRender Render;
-CDraw Draw;
 
 using namespace std;
 #define D3DparamX		, UINT paramx
@@ -192,20 +191,17 @@ void initFonts(LPDIRECT3DDEVICE9 pDevice){
     Render.setMenuParams(fontSize, width, height);
 
     qDebug() << "Release fonts";
-    Draw.SetDevice(pDevice);
-    Draw.ReleaseFonts();
     Render.setDevice(pDevice);
     Render.ReleaseFonts();
 
     qDebug() << "Init fonts";
-    Draw.AddFont("Gulim", fontSize, false, false);
-
-    bool success = false;
-    if(AddFontResourceA("Engine/Locale/English/data/font/engo.ttf"))
-        success = Render.AddFont("GothicRus", fontSize, false, false);
-    if(!success)
-        Render.AddFont("Arial", fontSize, false, false);
+//    bool success = false;
+//    if(AddFontResourceA("Engine/Locale/English/data/font/engo.ttf"))
+//        success = Render.AddFont("GothicRus", fontSize, false, false);
+//    if(!success)
+//        Render.AddFont("Arial", fontSize, false, false);
     Render.AddFont("Arial", fontSize, false, false);
+    Render.AddFont("Gulim", fontSize, false, false);
 }
 
 HRESULT STDMETHODCALLTYPE hooks::user_release(LPDIRECT3DDEVICE9 pDevice) {
@@ -221,40 +217,6 @@ HRESULT STDMETHODCALLTYPE hooks::user_release(LPDIRECT3DDEVICE9 pDevice) {
 }
 
 
-
-HRESULT STDMETHODCALLTYPE hooks::user_present(LPDIRECT3DDEVICE9 pDevice, const RECT* pSourceRect, const RECT* pDestRect, HWND hDestWindowOverride, const RGNDATA *pDirtyRegion) {
-//    qDebug() << "PRESENT";
-//    HRESULT hr = D3D_OK;
-//    HRESULT hr = pDevice->TestCooperativeLevel();
-//    if (FAILED(hr))
-//        qDebug() << "Present TestCooperativeLevel" << DXGetErrorString9A(hr);
-
-//    if(oldDevice!=pDevice){
-//        qDebug() << "Device changed from" << oldDevice << "to" << pDevice;
-//        oldDevice = pDevice;
-//        if(pFont){
-//            pFont->Release();
-//            pFont = nullptr;
-//        }
-//    }
-//    if(!pFont){
-//        hr = D3DXCreateFont(pDevice, 30, 0, FW_NORMAL, 1, false,
-//        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
-//        DEFAULT_PITCH | FF_DONTCARE, L"Consolas", &pFont);
-//        if (FAILED(hr))
-//            qDebug() << "Could not create font." << DXGetErrorString9A(hr);
-//    }
-//    if(SUCCEEDED(hr)){
-//        RECT rect = {0,0,0,0};
-//        SetRect(&rect, 0, 0, 300, 100);
-//        int height = pFont->DrawText(nullptr, L"Hello, World!", -1, &rect,
-//            DT_LEFT | DT_NOCLIP, -1);
-//        if(!height)
-//            qDebug() << "Could not draw text.";
-//    }
-    paint(pDevice);
-    return hooks::original_present(pDevice, pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
-}
 
 #ifndef TH32CS_SNAPMODULE32
 #define TH32CS_SNAPMODULE32 0x8
@@ -313,7 +275,6 @@ HRESULT STDMETHODCALLTYPE hooks::user_reset(LPDIRECT3DDEVICE9 pDevice, D3DPRESEN
 
     // Освобождает все ссылки к ресурсам видеопамяти и удаляет все блоки состояния.
     Render.OnLostDevice();
-    Draw.OnLostDevice();
     if(pFont)pFont->OnLostDevice();
     hr = hooks::original_reset(pDevice, pPresentationParameters);
 
@@ -322,7 +283,6 @@ HRESULT STDMETHODCALLTYPE hooks::user_reset(LPDIRECT3DDEVICE9 pDevice, D3DPRESEN
         // Этот метод необходимо вызывать после сброса устройства, и перед вызовом любых других методов,
         // если свойство IsUsingEventHandlers установлено на false.
         Render.OnResetDevice();
-        Draw.OnResetDevice();
         if(pFont)pFont->OnResetDevice();
     }
     else
@@ -345,7 +305,6 @@ HRESULT APIENTRY HookedReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* p
 
     // Освобождает все ссылки к ресурсам видеопамяти и удаляет все блоки состояния.
     Render.OnLostDevice();
-    Draw.OnLostDevice();
     if(pFont!=nullptr)pFont->OnLostDevice();
     hr = pDevice->Reset(pPresentationParameters);
 
@@ -354,7 +313,6 @@ HRESULT APIENTRY HookedReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* p
         // Этот метод необходимо вызывать после сброса устройства, и перед вызовом любых других методов,
         // если свойство IsUsingEventHandlers установлено на false.
         Render.OnResetDevice();
-        Draw.OnResetDevice();
         if(pFont!=nullptr)pFont->OnResetDevice();
     }
     else
@@ -393,35 +351,7 @@ HRESULT APIENTRY HookedPresent(LPDIRECT3DDEVICE9 pDevice, const RECT *pSourceRec
 
 HRESULT APIENTRY HookedEndScene(LPDIRECT3DDEVICE9 pDevice)
 {
-//    qDebug() << "HookedEndScene";
     HRESULT hr = D3D_OK;
-//    hr = pDevice->TestCooperativeLevel();
-//    if (FAILED(hr))
-//        qDebug() << "HookedEndScene TestCooperativeLevel" << DXGetErrorString9A(hr);
-
-//    if(oldDevice!=pDevice){
-//        qDebug() << "Device changed from" << oldDevice << "to" << pDevice;
-//        oldDevice = pDevice;
-//        if(pFont){
-//            pFont->Release();
-//            pFont = nullptr;
-//        }
-//    }
-//    if(!pFont){
-//        hr = D3DXCreateFont(pDevice, 30, 0, FW_NORMAL, 1, false,
-//        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
-//        DEFAULT_PITCH | FF_DONTCARE, L"Consolas", &pFont);
-//        if (FAILED(hr))
-//            qDebug() << "Could not create font." << DXGetErrorString9A(hr);
-//    }
-//    if(SUCCEEDED(hr)){
-//        RECT rect = {0,0,0,0};
-//        SetRect(&rect, 0, 0, 300, 100);
-//        int height = pFont->DrawText(nullptr, L"Hello, World!", -1, &rect,
-//                DT_LEFT | DT_NOCLIP, -1);
-//        if(!height)
-//            qDebug() << "Could not draw text.";
-//    }
     paint(pDevice);
     memcpy((void *)pEndScene, CodeFragmentES, 5);
     hr = pDevice->EndScene();
@@ -662,7 +592,6 @@ void APIENTRY ShutdownMod()
         if(needAddHook)memcpy((void *)pReset, CodeFragmentRES, 5);
         // Освобождаем память
         Render.ReleaseFonts();
-        Draw.ReleaseFonts();
         if(pFont!=nullptr){
             qDebug() << "Release Font";
             pFont->Release();
@@ -738,7 +667,6 @@ DWORD WINAPI Hook(LPVOID Param)
         lpSharedMemory = (PGameInfo)MapViewOfFile(hSharedMemory, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, 0);
         PTotalActions = &lpSharedMemory->total_actions;
         if(lpSharedMemory!=nullptr){
-            lpSharedMemory->playersNumber = 0;
             Render.setGameInfo(lpSharedMemory);
             QSettings settings("stats.ini", QSettings::IniFormat);
             runWithGame = settings.value("settings/runWithGame", true).toBool();
@@ -836,7 +764,6 @@ BOOL WINAPI DllMain(HMODULE hDll, DWORD dwReason, LPVOID lpReserved)
         UnmapViewOfFile(lpSharedMemory);
         CloseHandle(hSharedMemory);
         unhookKeyboard();
-        // Exit if failure
     }
 
     return TRUE;
@@ -844,17 +771,20 @@ BOOL WINAPI DllMain(HMODULE hDll, DWORD dwReason, LPVOID lpReserved)
 
 void paint(LPDIRECT3DDEVICE9 pDevice)
 {
+    int main_font = 1;
     if(oldDevice!=pDevice) initFonts(pDevice);
     if(lpSharedMemory->showMenu)
-        Render.Init_PosMenu(QString("Soulstorm Ladder "+version_str).toStdString().data());
+        Render.initPosMenu(QString("Soulstorm Ladder "+version_str).toStdString().data(), main_font);
+
 
     int center_text_pos = width*0.5;
+
     if(lpSharedMemory->showRaces){
         int text_w = 0;
         for(int i=0; i<8; i++){
             string player_info(&lpSharedMemory->players[i][0]);
             if(!player_info.empty()){
-                int w = Draw.GetTextLen(player_info.data(), 0);
+                int w = Render.GetTextLen(player_info.data(), main_font);
                 if(w>text_w)
                     text_w = w;
             } else break;
@@ -866,9 +796,9 @@ void paint(LPDIRECT3DDEVICE9 pDevice)
         for(int i=0; i<8; i++){
             string player_info(&lpSharedMemory->players[i][0]);
             if(!player_info.empty()){
-                Draw.Draw_Box(offset_x, i*offset_y+offset_y, box_width, box_height, DARKGRAY(150));
-                Draw.Draw_Border(offset_x, i*offset_y+offset_y, box_width, box_height, 1, SKYBLUE(255));
-                Draw.String(offset_x+4, i*offset_y+4+offset_y, ORANGE(255), player_info.data(), 0, DT_LEFT|DT_NOCLIP);
+                Render.drawBox(offset_x, i*offset_y+offset_y, box_width, box_height, DARKGRAY(150));
+                Render.drawBorder(offset_x, i*offset_y+offset_y, box_width, box_height, 1, SKYBLUE(255));
+                Render.String(offset_x+4, i*offset_y+4+offset_y, ORANGE(255), player_info.data(), main_font, DT_LEFT|DT_NOCLIP);
             } else break;
         }
     }
@@ -882,13 +812,13 @@ void paint(LPDIRECT3DDEVICE9 pDevice)
         if(lpSharedMemory->MaxAPM>0)
             str += " Max: "+to_string(lpSharedMemory->MaxAPM);
         if(!str.empty()){
-            int text_w = Draw.GetTextLen(str.data(), 0);
+            int text_w = Render.GetTextLen(str.data(), 0);
             int box_width = text_w+12;
             int box_height = fontSize+8;
             int offset_x = center_text_pos-(box_width)/2;
-            Draw.Draw_Box(offset_x, 0, box_width, box_height, DARKGRAY(150));
-            Draw.Draw_Border(offset_x, 0, box_width, box_height, 1, SKYBLUE(255));
-            Draw.Text(str.data(), offset_x+4, 4, 0, false, ORANGE(255), ORANGE(255));
+            Render.drawBox(offset_x, 0, box_width, box_height, DARKGRAY(150));
+            Render.drawBorder(offset_x, 0, box_width, box_height, 1, SKYBLUE(255));
+            Render.Text(str.data(), offset_x+4, 4, main_font, false, ORANGE(255), ORANGE(255), 1);
         }
     }
 }
